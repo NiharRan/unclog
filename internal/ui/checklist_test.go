@@ -49,7 +49,9 @@ func selected(m *Checklist) []bool {
 	return s
 }
 
-func eq(a, b []bool) bool { return len(a) == len(b) && (len(a) == 0 || a[0] == b[0] && eq(a[1:], b[1:])) }
+func eq(a, b []bool) bool {
+	return len(a) == len(b) && (len(a) == 0 || a[0] == b[0] && eq(a[1:], b[1:]))
+}
 
 func TestChecklistToggleAndBulkKeys(t *testing.T) {
 	m := NewChecklist(items(), false, false)
@@ -197,5 +199,44 @@ func TestRenderResults(t *testing.T) {
 	_ = RenderResults(&b, []engine.Result{{Finding: res[0].Finding, Action: "delete", Outcome: engine.Deleted}}, false)
 	if !strings.Contains(b.String(), "Cleaned 1 item, freed 10.0 MB.") {
 		t.Errorf("permanent summary:\n%s", b.String())
+	}
+}
+
+func TestChecklistCustomWording(t *testing.T) {
+	m := NewChecklist(items(), false, false)
+	m.Title, m.Verb = "Select processes to stop", "Terminate"
+	if !strings.Contains(m.View(), "Select processes to stop") {
+		t.Errorf("title missing:\n%s", m.View())
+	}
+	press(m, "enter")
+	if !strings.Contains(m.View(), "Terminate: 1 items") || strings.Contains(m.View(), "Trash") {
+		t.Errorf("confirm view:\n%s", m.View())
+	}
+}
+
+func TestRenderKill(t *testing.T) {
+	p := func(pid int32) engine.Proc {
+		return engine.Proc{PID: pid, Name: "node", Tool: "MCP servers", RSS: 100 << 20}
+	}
+	res := []engine.KillResult{
+		{Proc: p(1000), Outcome: engine.Terminated},
+		{Proc: p(1001), Outcome: engine.Killed},
+		{Proc: p(50), Outcome: engine.Refused, Err: errors.New("pid 50 is below 100")},
+		{Proc: p(1002), Outcome: engine.Failed, Err: errors.New("SIGTERM: denied")},
+	}
+	var b bytes.Buffer
+	if err := RenderKill(&b, res, false, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"stopped", "MCP servers: node (pid 1000)", "killed", "skipped MCP servers: node (pid 50)", "below 100", "failed  MCP servers: node (pid 1002)",
+		"Stopped 2 processes, freed about 200.0 MB of RAM.", "1 process skipped by safety checks.", "1 process failed."} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("missing %q in\n%s", want, b.String())
+		}
+	}
+	b.Reset()
+	_ = RenderKill(&b, []engine.KillResult{{Proc: p(1000), Outcome: engine.DryRun}}, true, false)
+	if !strings.Contains(b.String(), "would stop") || !strings.Contains(b.String(), "Dry run: 1 process, about 100.0 MB of RAM. Nothing was changed.") {
+		t.Errorf("dry:\n%s", b.String())
 	}
 }

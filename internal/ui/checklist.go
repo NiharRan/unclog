@@ -30,6 +30,9 @@ type Checklist struct {
 	permanent bool
 	st        styles
 
+	// Title and Verb override the clean wording, e.g. "Select processes" and "Terminate".
+	Title, Verb string
+
 	Confirmed bool
 	Cancelled bool
 }
@@ -136,7 +139,11 @@ func (m *Checklist) View() string {
 		return m.confirmView()
 	}
 	var b strings.Builder
-	b.WriteString(m.st.bold.Render("Select what to clean") + "\n\n")
+	title := m.Title
+	if title == "" {
+		title = "Select what to clean"
+	}
+	b.WriteString(m.st.bold.Render(title) + "\n\n")
 	end := min(len(m.items), m.offset+m.height)
 	lastTool := ""
 	for i := m.offset; i < end; i++ {
@@ -188,9 +195,13 @@ func (m *Checklist) confirmView() string {
 		}
 	}
 	var b strings.Builder
-	verb := "Move to the Trash"
-	if m.permanent {
+	verb := m.Verb
+	switch {
+	case verb != "":
+	case m.permanent:
 		verb = "PERMANENTLY DELETE"
+	default:
+		verb = "Move to the Trash"
 	}
 	fmt.Fprintf(&b, "%s\n\n", m.st.bold.Render(fmt.Sprintf("%s: %d items, %s", verb, len(sel), selectedSize(sel))))
 	if risky > 0 {

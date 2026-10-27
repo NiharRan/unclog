@@ -64,3 +64,47 @@ func renderResults(w io.Writer, results []engine.Result, color, dry bool) error 
 	_, err := io.WriteString(w, b.String())
 	return err
 }
+
+// RenderKill prints one line per process and a closing summary. dry means nothing was signalled.
+func RenderKill(w io.Writer, results []engine.KillResult, dry, color bool) error {
+	st := newStyles(color)
+	var b strings.Builder
+	var n, refused, failed int
+	var rss uint64
+	for _, r := range results {
+		p := r.Proc
+		label := engine.ProcLabel(p)
+		if p.Tool != "" {
+			label = p.Tool + ": " + label
+		}
+		switch r.Outcome {
+		case engine.Refused:
+			refused++
+			fmt.Fprintf(&b, "%s %s  %s\n", st.review.Render("skipped"), label, st.dim.Render(r.Err.Error()))
+		case engine.Failed:
+			failed++
+			fmt.Fprintf(&b, "%s %s  %s\n", st.careful.Render("failed "), label, r.Err)
+		default:
+			n++
+			rss += p.RSS
+			word := map[engine.Outcome]string{engine.Terminated: "stopped", engine.Killed: "killed", engine.DryRun: "would stop"}[r.Outcome]
+			fmt.Fprintf(&b, "%s %s  %s\n", st.safe.Render(pad(word, 7)), label, st.dim.Render(engine.Size(p.RSS).String()))
+		}
+	}
+	b.WriteString("\n")
+	if dry {
+		fmt.Fprintf(&b, "%s\n", st.bold.Render(fmt.Sprintf("Dry run: %s, about %s of RAM. Nothing was changed.", plural(n, "process"), engine.Size(rss))))
+	} else if n == 0 {
+		b.WriteString(st.bold.Render("Nothing was stopped.") + "\n")
+	} else {
+		fmt.Fprintf(&b, "%s\n", st.bold.Render(fmt.Sprintf("Stopped %s, freed about %s of RAM.", plural(n, "process"), engine.Size(engine.FreedRAM(results)))))
+	}
+	if refused > 0 {
+		fmt.Fprintf(&b, "%s\n", plural(refused, "process")+" skipped by safety checks.")
+	}
+	if failed > 0 {
+		fmt.Fprintf(&b, "%s\n", st.careful.Render(plural(failed, "process")+" failed."))
+	}
+	_, err := io.WriteString(w, b.String())
+	return err
+}
