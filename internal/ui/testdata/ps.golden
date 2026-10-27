@@ -1,0 +1,8 @@
+TOOL         PID       RAM    CPU  UPTIME  PARENT      ORPHAN
+Ollama       300    5.0 GB   0.0%  1d2h    launchd(1)  -
+Cursor       200    1.5 GB  12.3%  5h0m    launchd(1)  -
+MCP servers  101  800.0 MB   0.0%  2d2h    launchd(1)  yes
+MCP servers  102  300.0 MB   0.1%  3h0m    launchd(1)  likely
+MCP servers  103  120.0 MB   2.5%  1h30m   Cursor(77)  -
+
+system: 11.0 GB used of 16.0 GB, pressure warning

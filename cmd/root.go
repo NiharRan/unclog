@@ -2,9 +2,11 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 
 	"github.com/spf13/cobra"
 )
@@ -39,7 +41,7 @@ func newRootCmd() *cobra.Command {
 	}
 	root.PersistentFlags().BoolVar(&quiet, "quiet", false, "hide footers and non-essential output")
 	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
-	root.AddCommand(newVersionCmd(), newScanCmd())
+	root.AddCommand(newVersionCmd(), newScanCmd(), newPSCmd())
 	return root
 }
 
@@ -59,7 +61,9 @@ func isTerminal(f *os.File) bool {
 
 // Execute runs the CLI and returns the process exit code.
 func Execute() int {
-	if err := newRootCmd().Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	if err := newRootCmd().ExecuteContext(ctx); err != nil {
 		var ee *exitError
 		if errors.As(err, &ee) {
 			if ee.msg != "" {

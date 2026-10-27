@@ -47,7 +47,7 @@ func golden(t *testing.T, name, got string) {
 func render(t *testing.T, fs []engine.Finding, o TableOptions) string {
 	t.Helper()
 	var b bytes.Buffer
-	if err := RenderScan(&b, fs, o); err != nil {
+	if err := RenderScan(&b, fs, nil, o); err != nil {
 		t.Fatal(err)
 	}
 	return b.String()
@@ -86,7 +86,7 @@ func TestRenderScanColorEmitsANSI(t *testing.T) {
 
 func TestWriteScanJSON(t *testing.T) {
 	var b bytes.Buffer
-	if err := WriteScanJSON(&b, sample(), []string{"pkg_caches: boom"}); err != nil {
+	if err := WriteScanJSON(&b, sample(), nil, []string{"pkg_caches: boom"}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(b.String(), "\x1b") {
@@ -112,7 +112,7 @@ func TestWriteScanJSON(t *testing.T) {
 
 func TestWriteScanJSONEmptyArraysNotNull(t *testing.T) {
 	var b bytes.Buffer
-	_ = WriteScanJSON(&b, nil, nil)
+	_ = WriteScanJSON(&b, nil, nil, nil)
 	for _, want := range []string{`"findings": []`, `"warnings": []`} {
 		if !strings.Contains(b.String(), want) {
 			t.Errorf("missing %s in\n%s", want, b.String())
@@ -131,5 +131,60 @@ func TestAgo(t *testing.T) {
 	}
 	if ago(time.Time{}, now) != "-" {
 		t.Error("zero time should render -")
+	}
+}
+
+func sampleProcs() []engine.Proc {
+	mk := func(pid, ppid int32, tool, parent string, rss uint64, cpu float64, age time.Duration, orphan, confident bool) engine.Proc {
+		return engine.Proc{PID: pid, PPID: ppid, ParentName: parent, Tool: tool, RSS: rss, CPU: cpu, Created: now.Add(-age), Orphan: orphan, Confident: confident}
+	}
+	return []engine.Proc{
+		mk(101, 1, "MCP servers", "launchd", 800<<20, 0, 50*time.Hour, true, true),
+		mk(102, 1, "MCP servers", "launchd", 300<<20, 0.1, 3*time.Hour, true, false),
+		mk(103, 77, "MCP servers", "Cursor", 120<<20, 2.5, 90*time.Minute, false, false),
+		mk(200, 1, "Cursor", "launchd", 1500<<20, 12.3, 5*time.Hour, false, false),
+		mk(300, 1, "Ollama", "launchd", 5<<30, 0, 26*time.Hour, false, false),
+	}
+}
+
+var sampleMem = engine.MemInfo{Total: 16 << 30, Used: 11 << 30, Available: 5 << 30, Pressure: "warning"}
+
+func TestRenderScanWithRAMGolden(t *testing.T) {
+	var b bytes.Buffer
+	if err := RenderScan(&b, sample(), &RAMReport{Procs: sampleProcs(), Mem: sampleMem}, TableOptions{Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	golden(t, "scan_ram.golden", b.String())
+}
+
+func TestRenderScanRAMOnlySummary(t *testing.T) {
+	var b bytes.Buffer
+	_ = RenderScan(&b, nil, &RAMReport{Procs: sampleProcs()[:1], Mem: sampleMem}, TableOptions{Now: now, Quiet: true})
+	if !strings.Contains(b.String(), "Found 800.0 MB RAM in 1 orphaned process.") {
+		t.Errorf("summary:\n%s", b.String())
+	}
+	b.Reset()
+	_ = RenderScan(&b, nil, &RAMReport{Procs: sampleProcs()[3:4], Mem: sampleMem}, TableOptions{Now: now, Quiet: true})
+	if !strings.Contains(b.String(), "No orphaned processes.") {
+		t.Errorf("summary:\n%s", b.String())
+	}
+}
+
+func TestRenderPSGolden(t *testing.T) {
+	var b bytes.Buffer
+	if err := RenderPS(&b, sampleProcs(), sampleMem, TableOptions{Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	golden(t, "ps.golden", b.String())
+	if strings.Contains(b.String(), "\x1b") {
+		t.Error("color-off output contains ANSI codes")
+	}
+}
+
+func TestPlural(t *testing.T) {
+	for n, want := range map[int]string{1: "1 process", 2: "2 processes"} {
+		if got := plural(n, "process"); got != want {
+			t.Errorf("plural(%d) = %q; want %q", n, got, want)
+		}
 	}
 }

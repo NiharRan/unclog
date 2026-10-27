@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NiharRan/unclog/internal/engine"
 	"github.com/NiharRan/unclog/internal/ui"
@@ -22,10 +23,28 @@ func (f fake) Scan(context.Context, engine.Env) ([]engine.Finding, error) {
 	return f.fs, f.err
 }
 
+// useProcs replaces the process snapshot; useDetectors defaults it to "no AI processes".
+func useProcs(t *testing.T, procs []engine.Proc) {
+	t.Helper()
+	old := procScan
+	procScan = func(context.Context, engine.Env, *engine.CPUTracker) ([]engine.Proc, engine.MemInfo, error) {
+		return procs, engine.MemInfo{Total: 8 << 30, Used: 4 << 30, Available: 4 << 30, Pressure: "normal"}, nil
+	}
+	t.Cleanup(func() { procScan = old })
+}
+
+func aiProc(pid int32, tool string, rss uint64, orphan bool) engine.Proc {
+	return engine.Proc{PID: pid, PPID: 1, Name: "node", ParentName: "launchd", Tool: tool, RSS: rss, Orphan: orphan, Confident: orphan,
+		Cmdline: "node server.js --token hunter2", Created: time.Now().Add(-3 * time.Hour)}
+}
+
 func useDetectors(t *testing.T, ds ...engine.Detector) {
 	t.Helper()
+	useProcs(t, nil)
 	oldEnv, oldDs := newEnv, detectorList
-	newEnv = func() (engine.Env, error) { return engine.Env{Home: "/home/u", OS: "linux", Getenv: func(string) string { return "" }}, nil }
+	newEnv = func() (engine.Env, error) {
+		return engine.Env{Home: "/home/u", OS: "linux", Getenv: func(string) string { return "" }}, nil
+	}
 	detectorList = func() []engine.Detector { return ds }
 	t.Cleanup(func() { newEnv, detectorList = oldEnv, oldDs })
 }
@@ -100,11 +119,72 @@ func TestScanNothingFoundExitCode(t *testing.T) {
 	}
 }
 
-func TestScanOnlyRAMNotAvailableYet(t *testing.T) {
+func TestScanWithRAM(t *testing.T) {
 	useDetectors(t, fake{name: "a", fs: []engine.Finding{finding("/home/u/.cache/pip", 5<<20)}})
-	out, err := runErr("scan", "--only", "ram")
-	if exitCode(err) != ExitNothing || !strings.Contains(out, "not available yet") {
-		t.Errorf("code=%d out=%q", exitCode(err), out)
+	useProcs(t, []engine.Proc{aiProc(10, "MCP servers", 100<<20, true), aiProc(11, "MCP servers", 50<<20, false), aiProc(12, "Cursor", 300<<20, false)})
+	out, err := runErr("scan", "--no-color")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"RAM  450.0 MB across 3 processes", "1 orphaned (100.0 MB)", "Found 5.0 MB reclaimable and 100.0 MB RAM in 1 orphaned process."} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in\n%s", want, out)
+		}
+	}
+}
+
+func TestScanOnlyRAM(t *testing.T) {
+	useDetectors(t, fake{name: "a", fs: []engine.Finding{finding("/home/u/.cache/pip", 5<<20)}})
+	useProcs(t, []engine.Proc{aiProc(10, "MCP servers", 100<<20, true)})
+	out, err := runErr("scan", "--only", "ram", "--no-color")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "pip") || !strings.Contains(out, "Found 100.0 MB RAM in 1 orphaned process.") {
+		t.Errorf("--only ram output:\n%s", out)
+	}
+	useProcs(t, nil)
+	if _, err := runErr("scan", "--only", "ram"); exitCode(err) != ExitNothing {
+		t.Errorf("no processes: code=%d; want %d", exitCode(err), ExitNothing)
+	}
+}
+
+func TestScanOnlyDiskSkipsProcesses(t *testing.T) {
+	useDetectors(t, fake{name: "a", fs: []engine.Finding{finding("/home/u/.cache/pip", 5<<20)}})
+	useProcs(t, []engine.Proc{aiProc(10, "MCP servers", 100<<20, true)})
+	out, err := runErr("scan", "--only", "disk", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, `"ram"`) {
+		t.Errorf("--only disk should omit ram:\n%s", out)
+	}
+}
+
+func TestScanJSONIncludesRAM(t *testing.T) {
+	useDetectors(t)
+	useProcs(t, []engine.Proc{aiProc(10, "MCP servers", 100<<20, true)})
+	out, err := runErr("scan", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc ui.ScanJSON
+	if err := json.Unmarshal([]byte(out), &doc); err != nil || doc.RAM == nil {
+		t.Fatalf("err=%v doc=%+v", err, doc)
+	}
+	if g := doc.RAM.Groups; len(g) != 1 || g[0].Orphans != 1 || doc.RAM.System.Pressure != "normal" {
+		t.Errorf("ram = %+v", doc.RAM)
+	}
+}
+
+func TestScanProcessErrorIsWarning(t *testing.T) {
+	useDetectors(t, fake{name: "a", fs: []engine.Finding{finding("/home/u/.cache/pip", 5<<20)}})
+	procScan = func(context.Context, engine.Env, *engine.CPUTracker) ([]engine.Proc, engine.MemInfo, error) {
+		return nil, engine.MemInfo{}, errors.New("no permission")
+	}
+	out, err := runErr("scan", "--json")
+	if err != nil || !strings.Contains(out, "processes: no permission") {
+		t.Errorf("err=%v out=%s", err, out)
 	}
 }
 

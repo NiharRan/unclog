@@ -41,38 +41,53 @@ func newScanCmd() *cobra.Command {
 				return err
 			}
 
+			doDisk, doRAM := only != "ram", only != "disk"
+			ctx := cmd.Context()
 			var findings []engine.Finding
 			var warnings []string
-			if only == "ram" {
-				// Process scanning arrives with M7.
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "note: RAM and process scanning is not available yet")
-			} else {
-				clear := progress(asJSON)
-				fs, errs := engine.Scan(cmd.Context(), env, detectorList(), func(f engine.Finding) bool {
+			warn := func(e error) {
+				warnings = append(warnings, e.Error())
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "warning:", e)
+			}
+
+			clear := progress(asJSON)
+			if doDisk {
+				fs, errs := engine.Scan(ctx, env, detectorList(), func(f engine.Finding) bool {
 					if f.Path == "" && len(f.CleanVia) > 0 {
 						return true
 					}
 					denied, _ := safety.IsDenied(f.Path, env)
 					return !denied
 				})
-				clear()
 				findings = engine.FilterMinSize(fs, min)
 				for _, e := range errs {
-					warnings = append(warnings, e.Error())
-					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "warning:", e)
+					warn(e)
 				}
+			}
+			var ram *ui.RAMReport
+			if doRAM {
+				procs, mem, err := procScan(ctx, env, engine.NewCPUTracker(engine.DefaultIdleWindow))
+				if err != nil {
+					warn(fmt.Errorf("processes: %w", err))
+				} else {
+					ram = &ui.RAMReport{Procs: procs, Mem: mem}
+				}
+			}
+			clear()
+			if err := ctx.Err(); err != nil {
+				return err
 			}
 
 			out := cmd.OutOrStdout()
 			if asJSON {
-				err = ui.WriteScanJSON(out, findings, warnings)
+				err = ui.WriteScanJSON(out, findings, ram, warnings)
 			} else {
-				err = ui.RenderScan(out, findings, ui.TableOptions{Color: ColorEnabled(), Quiet: quiet, Now: time.Now()})
+				err = ui.RenderScan(out, findings, ram, ui.TableOptions{Color: ColorEnabled(), Quiet: quiet, Now: time.Now()})
 			}
 			if err != nil {
 				return err
 			}
-			if len(findings) == 0 {
+			if len(findings) == 0 && (ram == nil || len(ram.Procs) == 0) {
 				return &exitError{code: ExitNothing}
 			}
 			return nil
