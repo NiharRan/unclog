@@ -106,7 +106,9 @@ func truncate(s string) string {
 	if utf8.RuneCountInString(s) <= maxLabel {
 		return s
 	}
-	return string([]rune(s)[:maxLabel-1]) + "…"
+	// Keep both ends: long paths and project names differ at the tail.
+	r := []rune(s)
+	return string(r[:maxLabel/2-1]) + "…" + string(r[len(r)-maxLabel/2:])
 }
 
 func pad(s string, w int) string {

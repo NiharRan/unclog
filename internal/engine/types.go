@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 type Category string
@@ -84,6 +86,8 @@ type Finding struct {
 	// CleanVia, when set, is a command (argv) that removes this item instead of
 	// deleting files, e.g. {"ollama", "rm", "llama3"}. Path is then informational.
 	CleanVia []string
+	// ToolRunning is set when the owning tool has a live process; clean must confirm first.
+	ToolRunning bool
 }
 
 // Detector finds waste for one tool or cache type. Scan must be read-only.
@@ -99,6 +103,8 @@ type Env struct {
 	Getenv func(string) string
 	// Run executes a command and returns trimmed stdout.
 	Run func(ctx context.Context, name string, args ...string) (string, error)
+	// ProcessNames lists names of running processes; nil means unknown (treated as none).
+	ProcessNames func() []string
 }
 
 // NewEnv returns an Env backed by the real machine.
@@ -117,5 +123,17 @@ func NewEnv() (Env, error) {
 			out, err := exec.CommandContext(ctx, name, args...).Output()
 			return strings.TrimSpace(string(out)), err
 		},
+		ProcessNames: processNames,
 	}, nil
+}
+
+func processNames() []string {
+	procs, _ := process.Processes()
+	var names []string
+	for _, p := range procs {
+		if n, err := p.Name(); err == nil {
+			names = append(names, n)
+		}
+	}
+	return names
 }

@@ -27,9 +27,14 @@ type Checker struct {
 
 func NewChecker(env engine.Env) *Checker {
 	return &Checker{
-		Env:   env,
-		Open:  func() []string { return listOpenFiles(env) },
-		Procs: listProcessNames,
+		Env:  env,
+		Open: func() []string { return listOpenFiles(env) },
+		Procs: func() []string {
+			if env.ProcessNames == nil {
+				return nil
+			}
+			return env.ProcessNames()
+		},
 	}
 }
 
