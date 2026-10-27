@@ -15,13 +15,13 @@ const walkWorkers = 16
 // Symlinks are never followed or counted; unreadable entries are skipped.
 // shortcut: apparent size, not allocated blocks, and hardlinks count twice; upgrade if numbers drift from du.
 func DirSize(ctx context.Context, path string) (Size, error) {
-	s, _, err := measure(ctx, path)
+	s, _, err := Measure(ctx, path)
 	return s, err
 }
 
 // LastUsed returns the newest modification time of any regular file under path.
 func LastUsed(ctx context.Context, path string) (time.Time, error) {
-	_, t, err := measure(ctx, path)
+	_, t, err := Measure(ctx, path)
 	return t, err
 }
 
@@ -32,7 +32,8 @@ type walker struct {
 	wg     sync.WaitGroup
 }
 
-func measure(ctx context.Context, root string) (Size, time.Time, error) {
+// Measure returns DirSize and LastUsed from a single walk.
+func Measure(ctx context.Context, root string) (Size, time.Time, error) {
 	fi, err := os.Lstat(root)
 	if err != nil {
 		return 0, time.Time{}, err

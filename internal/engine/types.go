@@ -81,6 +81,9 @@ type Finding struct {
 	Risk     Risk
 	LastUsed time.Time
 	Detector string
+	// CleanVia, when set, is a command (argv) that removes this item instead of
+	// deleting files, e.g. {"ollama", "rm", "llama3"}. Path is then informational.
+	CleanVia []string
 }
 
 // Detector finds waste for one tool or cache type. Scan must be read-only.
