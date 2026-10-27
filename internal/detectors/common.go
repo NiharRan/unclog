@@ -11,7 +11,10 @@ import (
 
 // All returns every detector shipped in this build.
 func All() []engine.Detector {
-	return []engine.Detector{PkgCaches{}, Tmp{}, HuggingFace{}, Ollama{}}
+	return []engine.Detector{
+		PkgCaches{}, Tmp{}, HuggingFace{}, Ollama{},
+		ClaudeCode{}, NewCursor(), NewVSCode(), NewWindsurf(), LMStudio{}, Docker{},
+	}
 }
 
 type target struct {

@@ -43,17 +43,6 @@ func listOpenFiles(env engine.Env) []string {
 	return files
 }
 
-func listProcessNames() []string {
-	procs, _ := process.Processes()
-	var names []string
-	for _, p := range procs {
-		if n, err := p.Name(); err == nil {
-			names = append(names, n)
-		}
-	}
-	return names
-}
-
 // IsOpen reports whether path, or anything under it, is open by a running process.
 func (c *Checker) IsOpen(p string) bool {
 	if c.Env.OS == "windows" && runtime.GOOS == "windows" {
@@ -76,10 +65,13 @@ func (c *Checker) IsOpen(p string) bool {
 	return false
 }
 
-// ToolRunning reports whether any process is named like one of names
-// ("Cursor" matches "Cursor" and "Cursor Helper", not "Cursorify").
-func (c *Checker) ToolRunning(names ...string) bool {
-	for _, proc := range c.Procs() {
+// ToolRunning reports whether any process is named like one of names.
+func (c *Checker) ToolRunning(names ...string) bool { return NameMatches(c.Procs(), names...) }
+
+// NameMatches reports whether any process name equals one of names or is a helper of it
+// ("Cursor" matches "Cursor" and "Cursor Helper", not "Cursorify"). Case-insensitive.
+func NameMatches(procs []string, names ...string) bool {
+	for _, proc := range procs {
 		pn := strings.TrimSuffix(strings.ToLower(proc), ".exe")
 		for _, n := range names {
 			n = strings.ToLower(n)

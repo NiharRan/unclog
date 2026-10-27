@@ -301,3 +301,165 @@ func TestAllHaveUniqueNames(t *testing.T) {
 		seen[d.Name()] = true
 	}
 }
+
+func TestClaudeCode(t *testing.T) {
+	home := testutil.FakeHome(t)
+	got := scan(t, ClaudeCode{}, testEnv(home, "linux", nil, nil))
+	wantSizes(t, got, map[string]engine.Size{
+		"projects/-home-u-projA":          1024,
+		"projects/-home-u-projB/s1.jsonl": 300,
+		"projects/-home-u-projB/s2":       40,
+		"shell snapshots":                 60,
+	})
+	for label, f := range got {
+		if f.Risk != engine.RiskReview || f.Category != engine.CategoryLogs {
+			t.Errorf("%s: want review logs, got %s %s", label, f.Risk, f.Category)
+		}
+		// config, auth and memory must never be inside or be a finding
+		for _, bad := range []string{"settings.json", ".claude.json", "memory"} {
+			if filepath.Base(f.Path) == bad {
+				t.Errorf("%s: reported %s", label, f.Path)
+			}
+		}
+	}
+}
+
+func TestClaudeCodeConfigDirOverride(t *testing.T) {
+	custom := t.TempDir()
+	put(t, filepath.Join(custom, "shell-snapshots", "s"), 9)
+	env := testEnv(testutil.FakeHome(t), "linux", map[string]string{"CLAUDE_CONFIG_DIR": custom}, nil)
+	wantSizes(t, scan(t, ClaudeCode{}, env), map[string]engine.Size{"shell snapshots": 9})
+}
+
+func TestClaudeCodeSymlinkedProjectSkipped(t *testing.T) {
+	home, outside := t.TempDir(), t.TempDir()
+	put(t, filepath.Join(outside, "f"), 50)
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "projects"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(home, ".claude", "projects", "evil")); err != nil {
+		t.Skip("symlinks unsupported:", err)
+	}
+	wantSizes(t, scan(t, ClaudeCode{}, testEnv(home, "linux", nil, nil)), nil)
+}
+
+func TestEditors(t *testing.T) {
+	home := testutil.FakeHome(t)
+	env := testEnv(home, "linux", nil, nil)
+
+	got := scan(t, NewCursor(), env)
+	wantSizes(t, got, map[string]engine.Size{"cache": 10, "cached data": 20, "logs": 30, "workspace storage": 40})
+	if got["cache"].Risk != engine.RiskSafe || got["logs"].Risk != engine.RiskSafe || got["workspace storage"].Risk != engine.RiskReview {
+		t.Errorf("risks wrong: %+v", got)
+	}
+	for _, f := range got {
+		if f.Tool != "Cursor" {
+			t.Errorf("tool = %q", f.Tool)
+		}
+		// settings and globalStorage live next to workspaceStorage and must not be reported
+		for _, bad := range []string{"settings.json", "globalStorage"} {
+			if filepath.Base(f.Path) == bad {
+				t.Errorf("reported %s", f.Path)
+			}
+		}
+	}
+
+	wantSizes(t, scan(t, NewVSCode(), env), map[string]engine.Size{"cache": 11, "workspace storage": 41, "local file history": 8})
+	wantSizes(t, scan(t, NewWindsurf(), env), map[string]engine.Size{"cached data": 22})
+}
+
+func TestEditorsOSLayouts(t *testing.T) {
+	for goos, rel := range map[string]string{
+		"darwin":  "Library/Application Support/Cursor/Cache",
+		"windows": "AppData/Roaming/Cursor/Cache",
+		"linux":   ".config/Cursor/Cache",
+	} {
+		t.Run(goos, func(t *testing.T) {
+			home := t.TempDir()
+			put(t, filepath.Join(home, filepath.FromSlash(rel), "f"), 7)
+			wantSizes(t, scan(t, NewCursor(), testEnv(home, goos, nil, nil)), map[string]engine.Size{"cache": 7})
+		})
+	}
+}
+
+func TestEditorsXDGOverride(t *testing.T) {
+	cfg := t.TempDir()
+	put(t, filepath.Join(cfg, "Cursor", "Cache", "f"), 3)
+	env := testEnv(testutil.FakeHome(t), "linux", map[string]string{"XDG_CONFIG_HOME": cfg}, nil)
+	wantSizes(t, scan(t, NewCursor(), env), map[string]engine.Size{"cache": 3})
+}
+
+func TestToolRunningFlag(t *testing.T) {
+	env := testEnv(testutil.FakeHome(t), "linux", nil, nil)
+	env.ProcessNames = func() []string { return []string{"Cursor Helper (Renderer)", "bash"} }
+	for _, f := range scan(t, NewCursor(), env) {
+		if !f.ToolRunning {
+			t.Errorf("Cursor finding %q not flagged while Cursor runs", f.Label)
+		}
+	}
+	for _, f := range scan(t, NewVSCode(), env) {
+		if f.ToolRunning {
+			t.Errorf("VS Code finding %q flagged although only Cursor runs", f.Label)
+		}
+	}
+	env.ProcessNames = func() []string { return []string{"claude"} }
+	for _, f := range scan(t, ClaudeCode{}, env) {
+		if !f.ToolRunning {
+			t.Errorf("Claude finding %q not flagged", f.Label)
+		}
+	}
+}
+
+func TestLMStudio(t *testing.T) {
+	got := scan(t, LMStudio{}, testEnv(testutil.FakeHome(t), "linux", nil, nil))
+	wantSizes(t, got, map[string]engine.Size{"pub/model-a": 500, "pub/model-b": 600})
+	for _, f := range got {
+		if f.Risk != engine.RiskCareful || f.Category != engine.CategoryModel {
+			t.Errorf("%s: want careful model, got %s %s", f.Label, f.Risk, f.Category)
+		}
+	}
+}
+
+const dockerDF = `{"Type":"Images","TotalCount":"5","Active":"2","Size":"2.1GB","Reclaimable":"1.5GB (71%)"}
+{"Type":"Containers","TotalCount":"3","Active":"1","Size":"10MB","Reclaimable":"10MB (100%)"}
+{"Type":"Local Volumes","TotalCount":"2","Active":"0","Size":"900MB","Reclaimable":"900MB (100%)"}
+{"Type":"Build Cache","TotalCount":"9","Active":"0","Size":"300kB","Reclaimable":"300kB"}
+not json at all
+`
+
+func TestDocker(t *testing.T) {
+	var gotArgs []string
+	env := testEnv(t.TempDir(), "linux", nil, func(name string, args ...string) (string, error) {
+		gotArgs = append([]string{name}, args...)
+		return dockerDF, nil
+	})
+	got := scan(t, Docker{}, env)
+	wantSizes(t, got, map[string]engine.Size{"unused images": 3 << 29, "stopped containers": 10 << 20, "build cache": 300 << 10})
+	if gotArgs[0] != "docker" {
+		t.Errorf("ran %v", gotArgs)
+	}
+	for label, f := range got {
+		if f.Path != "" || len(f.CleanVia) < 3 || f.CleanVia[0] != "docker" || f.Risk != engine.RiskReview {
+			t.Errorf("%s: %+v", label, f)
+		}
+	}
+	for _, f := range got {
+		if f.Label == "local volumes" {
+			t.Error("volumes must never be offered")
+		}
+	}
+}
+
+func TestDockerUnavailable(t *testing.T) {
+	for name, run := range map[string]func(string, ...string) (string, error){
+		"nil runner / not installed": nil,
+		"daemon down":                func(string, ...string) (string, error) { return "", errors.New("Cannot connect to the Docker daemon") },
+		"empty output":               func(string, ...string) (string, error) { return "", nil },
+		"missing reclaimable field":  func(string, ...string) (string, error) { return `{"Type":"Images"}`, nil },
+		"nothing reclaimable":        func(string, ...string) (string, error) { return `{"Type":"Images","Reclaimable":"0B (0%)"}`, nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			wantSizes(t, scan(t, Docker{}, testEnv(t.TempDir(), "linux", nil, run)), nil)
+		})
+	}
+}
