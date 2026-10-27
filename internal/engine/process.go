@@ -69,23 +69,7 @@ func Snapshot(ctx context.Context, detail func(name string) bool) ([]Proc, error
 		ppid, _ := p.PpidWithContext(ctx)
 		pr := Proc{PID: p.Pid, PPID: ppid, Name: name}
 		if detail(name) {
-			pr.Detail = true
-			pr.Cmdline, _ = p.CmdlineWithContext(ctx)
-			if mi, err := p.MemoryInfoWithContext(ctx); err == nil {
-				pr.RSS = mi.RSS
-			}
-			if t, err := p.TimesWithContext(ctx); err == nil {
-				pr.CPUTime = t.User + t.System
-			}
-			if ms, err := p.CreateTimeWithContext(ctx); err == nil {
-				pr.Created = time.UnixMilli(ms)
-			}
-			if meName != "" {
-				u, _ := p.UsernameWithContext(ctx)
-				pr.Owned = u != "" && strings.EqualFold(u, meName)
-			} else if uids, err := p.UidsWithContext(ctx); err == nil && len(uids) > 0 {
-				pr.Owned = int(uids[0]) == me
-			}
+			fillDetail(ctx, p, &pr, me, meName)
 		}
 		out = append(out, pr)
 	}
@@ -302,3 +286,28 @@ func MaskCmdline(s string, max int) string {
 	}
 	return s
 }
+
+// fillDetail reads cmdline, memory, CPU time, start time and owner into pr.
+func fillDetail(ctx context.Context, p *process.Process, pr *Proc, me int, meName string) {
+	pr.Detail = true
+	pr.Cmdline, _ = p.CmdlineWithContext(ctx)
+	if mi, err := p.MemoryInfoWithContext(ctx); err == nil {
+		pr.RSS = mi.RSS
+	}
+	if t, err := p.TimesWithContext(ctx); err == nil {
+		pr.CPUTime = t.User + t.System
+	}
+	if ms, err := p.CreateTimeWithContext(ctx); err == nil {
+		pr.Created = time.UnixMilli(ms)
+	}
+	if meName != "" {
+		u, _ := p.UsernameWithContext(ctx)
+		pr.Owned = u != "" && strings.EqualFold(u, meName)
+	} else if uids, err := p.UidsWithContext(ctx); err == nil && len(uids) > 0 {
+		pr.Owned = int(uids[0]) == me
+	}
+}
+
+// IdleNow reports whether the latest CPU sample is near zero. Kill samples twice and
+// requires this, so a process that is busy right now is never terminated as an orphan.
+func IdleNow(p Proc) bool { return p.CPU < idleCPUPercent }
