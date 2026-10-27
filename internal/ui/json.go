@@ -17,6 +17,12 @@ type ScanJSON struct {
 	TotalBytes    int64         `json:"total_bytes"`
 	Findings      []FindingJSON `json:"findings"`
 	Warnings      []string      `json:"warnings"`
+	RAM           *RAMJSON      `json:"ram,omitempty"` // absent with --only disk
+}
+
+type RAMJSON struct {
+	System SystemJSON  `json:"system"`
+	Groups []GroupJSON `json:"groups"`
 }
 
 type FindingJSON struct {
@@ -35,12 +41,15 @@ type FindingJSON struct {
 }
 
 // WriteScanJSON writes the scan document; arrays are never null.
-func WriteScanJSON(w io.Writer, fs []engine.Finding, warnings []string) error {
+func WriteScanJSON(w io.Writer, fs []engine.Finding, ram *RAMReport, warnings []string) error {
 	doc := ScanJSON{
 		SchemaVersion: SchemaVersion,
 		TotalBytes:    int64(engine.Total(fs)),
 		Findings:      []FindingJSON{},
 		Warnings:      append([]string{}, warnings...),
+	}
+	if ram != nil {
+		doc.RAM = &RAMJSON{System: newSystemJSON(ram.Mem), Groups: newGroupsJSON(ram.Procs)}
 	}
 	for _, f := range fs {
 		fj := FindingJSON{

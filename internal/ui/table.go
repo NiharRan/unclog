@@ -51,19 +51,38 @@ func (s styles) risk(r engine.Risk) lipgloss.Style {
 	return s.careful
 }
 
-// Summary is the one shareable line printed after the table.
-func Summary(fs []engine.Finding) string {
-	return fmt.Sprintf("Found %s reclaimable.", engine.Total(fs))
+// RAMReport is the process side of a scan.
+type RAMReport struct {
+	Procs []engine.Proc
+	Mem   engine.MemInfo
 }
 
-// RenderScan writes findings grouped by tool (largest group first), then the summary line.
-func RenderScan(w io.Writer, fs []engine.Finding, o TableOptions) error {
+// Summary is the one shareable line printed after the tables.
+func Summary(fs []engine.Finding, ram *RAMReport) string {
+	var orphans int
+	var rss uint64
+	if ram != nil {
+		orphans, rss = engine.OrphanTotals(ram.Procs)
+	}
+	switch {
+	case len(fs) > 0 && orphans > 0:
+		return fmt.Sprintf("Found %s reclaimable and %s RAM in %s.", engine.Total(fs), engine.Size(rss), plural(orphans, "orphaned process"))
+	case len(fs) > 0:
+		return fmt.Sprintf("Found %s reclaimable.", engine.Total(fs))
+	case orphans > 0:
+		return fmt.Sprintf("Found %s RAM in %s.", engine.Size(rss), plural(orphans, "orphaned process"))
+	}
+	return "No orphaned processes."
+}
+
+// RenderScan writes disk findings grouped by tool (largest group first), the RAM section
+// when ram is set, then the summary line.
+func RenderScan(w io.Writer, fs []engine.Finding, ram *RAMReport, o TableOptions) error {
 	st := newStyles(o.Color)
 	var b strings.Builder
 
-	if len(fs) == 0 {
-		b.WriteString("Nothing found.\n")
-		_, err := io.WriteString(w, b.String())
+	if len(fs) == 0 && (ram == nil || len(ram.Procs) == 0) {
+		_, err := io.WriteString(w, "Nothing found.\n")
 		return err
 	}
 
@@ -94,12 +113,44 @@ func RenderScan(w io.Writer, fs []engine.Finding, o TableOptions) error {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(st.bold.Render(Summary(fs)) + "\n")
+	if ram != nil && len(ram.Procs) > 0 {
+		writeRAM(&b, ram, st)
+	}
+
+	b.WriteString(st.bold.Render(Summary(fs, ram)) + "\n")
 	if !o.Quiet {
 		fmt.Fprintf(&b, "%s\n", st.dim.Render("Want this automatic? Join the app waitlist → "+WaitlistURL))
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+func writeRAM(b *strings.Builder, ram *RAMReport, st styles) {
+	var total uint64
+	for _, p := range ram.Procs {
+		total += p.RSS
+	}
+	fmt.Fprintf(b, "%s  %s across %s\n", st.bold.Render("RAM"), engine.Size(total), plural(len(ram.Procs), "process"))
+	groups := engine.GroupByTool(ram.Procs)
+	toolW := 0
+	for _, g := range groups {
+		toolW = max(toolW, utf8.RuneCountInString(g.Tool))
+	}
+	for _, g := range groups {
+		orphan := ""
+		if g.Orphans > 0 {
+			orphan = st.careful.Render(fmt.Sprintf("%d orphaned (%s)", g.Orphans, engine.Size(g.OrphanRSS)))
+		}
+		row := fmt.Sprintf("  %s  %s  %s", pad(g.Tool, toolW), padLeft(plural(g.Count, "process"), 12), padLeft(engine.Size(g.RSS).String(), 9))
+		if orphan != "" {
+			row += "  " + orphan
+		}
+		b.WriteString(row + "\n")
+	}
+	if m := ram.Mem; m.Total > 0 {
+		fmt.Fprintf(b, "  %s\n", st.dim.Render(fmt.Sprintf("system: %s used of %s, pressure %s", engine.Size(m.Used), engine.Size(m.Total), m.Pressure)))
+	}
+	b.WriteString("\n")
 }
 
 func truncate(s string) string {
@@ -136,18 +187,23 @@ func ago(t, now time.Time) string {
 	case d < time.Hour:
 		return fmt.Sprintf("%d min ago", int(d.Minutes()))
 	case d < 24*time.Hour:
-		return plural(int(d.Hours()), "hour")
+		return agoPlural(int(d.Hours()), "hour")
 	case d < 60*24*time.Hour:
-		return plural(int(d.Hours()/24), "day")
+		return agoPlural(int(d.Hours()/24), "day")
 	case d < 2*365*24*time.Hour:
-		return plural(int(d.Hours()/24/30), "month")
+		return agoPlural(int(d.Hours()/24/30), "month")
 	}
-	return plural(int(d.Hours()/24/365), "year")
+	return agoPlural(int(d.Hours()/24/365), "year")
 }
+
+func agoPlural(n int, unit string) string { return plural(n, unit) + " ago" }
 
 func plural(n int, unit string) string {
 	if n == 1 {
-		return "1 " + unit + " ago"
+		return "1 " + unit
 	}
-	return fmt.Sprintf("%d %ss ago", n, unit)
+	if strings.HasSuffix(unit, "s") {
+		return fmt.Sprintf("%d %ses", n, unit)
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
