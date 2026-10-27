@@ -25,7 +25,7 @@ func CacheDir(env engine.Env) string {
 	return orDefault(env.Getenv("XDG_CACHE_HOME"), filepath.Join(env.Home, ".cache"))
 }
 
-// ConfigDir is the per-user config root (aiclean's own config and history live under it).
+// ConfigDir is the per-user config root (unclog's own config and history live under it).
 func ConfigDir(env engine.Env) string {
 	if env.OS == windows {
 		return orDefault(env.Getenv("APPDATA"), filepath.Join(env.Home, "AppData", "Roaming"))

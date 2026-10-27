@@ -21,14 +21,14 @@ type Entry struct {
 	Outcome string
 }
 
-// History appends actions to ~/.config/aiclean/history.log.
+// History appends actions to ~/.config/unclog/history.log.
 type History struct {
 	path string
 	mu   sync.Mutex
 }
 
 func NewHistory(env engine.Env) *History {
-	return &History{path: filepath.Join(paths.ConfigDir(env), "aiclean", "history.log")}
+	return &History{path: filepath.Join(paths.ConfigDir(env), "unclog", "history.log")}
 }
 
 func (h *History) Path() string { return h.path }

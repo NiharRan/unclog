@@ -23,7 +23,7 @@ var (
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "aiclean",
+		Use:           "unclog",
 		Short:         "Find and clean RAM, disk and process waste left by AI coding tools",
 		SilenceUsage:  true,
 		SilenceErrors: true,

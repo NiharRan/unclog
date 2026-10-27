@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-`aiclean` (working name) is a free, open-source Go CLI that finds the RAM, disk and process waste left behind by AI coding tools (Claude Code, Cursor, Copilot, Windsurf, Ollama, LM Studio, Hugging Face, MCP servers) and cleans it safely on request. Mac, Windows, Linux. Full spec: `docs/spec.md`. Milestone specs: `docs/milestones/`. Work one milestone per session.
+`unclog` is a free, open-source Go CLI that finds the RAM, disk and process waste left behind by AI coding tools (Claude Code, Cursor, Copilot, Windsurf, Ollama, LM Studio, Hugging Face, MCP servers) and cleans it safely on request. Mac, Windows, Linux. Full spec: `docs/spec.md`. Milestone specs: `docs/milestones/`. Work one milestone per session.
 
 ## Goals for v0.1
 
@@ -38,6 +38,6 @@
 7. Never touch config or auth files (`~/.claude.json`, `settings.json`, credentials, tokens).
 8. `kill` never touches processes owned by other users, PID < 100, or anything not matched by a detector; send SIGTERM first.
 9. `--dry-run` must produce exactly the same list as a real run, with nothing changed.
-10. Write a log of every clean/kill action to `~/.config/aiclean/history.log` (path, size, time).
+10. Write a log of every clean/kill action to `~/.config/unclog/history.log` (path, size, time).
 11. No network calls except an opt-in update check. No telemetry by default.
 12. Every detector ships with tests against a fake home dir in `testdata/`.

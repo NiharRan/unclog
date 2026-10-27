@@ -14,7 +14,7 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print version and platform",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "aiclean %s (commit %s, built %s) %s/%s\n",
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "unclog %s (commit %s, built %s) %s/%s\n",
 				version.Version, version.Commit, version.Date, runtime.GOOS, runtime.GOARCH)
 		},
 	}
