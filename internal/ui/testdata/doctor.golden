@@ -1,0 +1,6 @@
+Top 2 problems
+
+1. pnpm: 8.0 GB reclaimable in 1 item
+   fix: unclog clean --category cache
+2. 2 orphaned processes using 1.0 GB of RAM
+   fix: unclog kill --orphans

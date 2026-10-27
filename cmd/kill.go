@@ -54,8 +54,12 @@ processes, PID < 100, this program or its parent shell, or anything no detector 
 			if err != nil {
 				return err
 			}
+			cfg, err := loadConfig(cmd, env)
+			if err != nil {
+				return err
+			}
 			ctx, out := cmd.Context(), cmd.OutOrStdout()
-			tr := engine.NewCPUTracker(engine.DefaultIdleWindow)
+			tr := newTracker(cfg)
 
 			procs, _, err := procScan(ctx, env, tr)
 			if err != nil {

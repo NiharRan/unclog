@@ -54,10 +54,14 @@ review and careful items are listed unchecked. Files go to the OS Trash unless -
 			if err != nil {
 				return err
 			}
+			cfg, err := loadConfig(cmd, env)
+			if err != nil {
+				return err
+			}
 			ctx, out, errOut := cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr()
 
-			clear := progress(false)
-			findings, errs := engine.Scan(ctx, env, detectorList(), keepAllowed(env))
+			clear := progress(isQuiet(cfg))
+			findings, errs := scanDisk(ctx, env, cfg, cfg.MinSize)
 			clear()
 			if err := ctx.Err(); err != nil {
 				return err
@@ -72,12 +76,13 @@ review and careful items are listed unchecked. Files go to the OS Trash unless -
 				return &exitError{code: ExitNothing}
 			}
 			cleaner := newCleaner(env)
+			cleaner.Guard = cfg.Guard(cleaner.Guard) // exclusions hold even if a finding slipped through
 			opts := engine.ExecOptions{Permanent: permanent, DryRun: dryRun}
 
 			// Dry runs and --yes use the default selection, the same list a real --yes run acts on.
 			if dryRun || yes {
 				sel := engine.Selected(items)
-				if skipped := len(items) - len(sel); skipped > 0 && !quiet {
+				if skipped := len(items) - len(sel); skipped > 0 && !isQuiet(cfg) {
 					_, _ = fmt.Fprintf(errOut, "%d items not selected (review or careful risk, or their tool is running). Run without --yes to choose them.\n", skipped)
 				}
 				if len(sel) == 0 {

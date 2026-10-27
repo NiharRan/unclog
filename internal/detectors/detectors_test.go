@@ -463,3 +463,13 @@ func TestDockerUnavailable(t *testing.T) {
 		})
 	}
 }
+
+func TestCustom(t *testing.T) {
+	a, b := t.TempDir(), t.TempDir()
+	put(t, filepath.Join(a, "f"), 12)
+	got := scan(t, Custom{Paths: []string{a, filepath.Join(b, "missing")}}, testEnv(t.TempDir(), "linux", nil, nil))
+	wantSizes(t, got, map[string]engine.Size{a: 12})
+	if f := got[a]; f.Risk != engine.RiskReview || f.Tool != "Custom paths" || f.Path != a {
+		t.Errorf("finding = %+v", f)
+	}
+}

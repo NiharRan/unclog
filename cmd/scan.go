@@ -29,16 +29,19 @@ func newScanCmd() *cobra.Command {
 			if only != "" && only != "disk" && only != "ram" {
 				return fmt.Errorf("--only must be disk or ram, got %q", only)
 			}
-			var min engine.Size
-			if minSize != "" {
-				var err error
-				if min, err = engine.ParseSize(minSize); err != nil {
-					return fmt.Errorf("--min-size: %w", err)
-				}
-			}
 			env, err := newEnv()
 			if err != nil {
 				return err
+			}
+			cfg, err := loadConfig(cmd, env)
+			if err != nil {
+				return err
+			}
+			min := cfg.MinSize // --min-size overrides the configured threshold
+			if minSize != "" {
+				if min, err = engine.ParseSize(minSize); err != nil {
+					return fmt.Errorf("--min-size: %w", err)
+				}
 			}
 
 			doDisk, doRAM := only != "ram", only != "disk"
@@ -50,17 +53,17 @@ func newScanCmd() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "warning:", e)
 			}
 
-			clear := progress(asJSON)
+			clear := progress(asJSON || isQuiet(cfg))
 			if doDisk {
-				fs, errs := engine.Scan(ctx, env, detectorList(), keepAllowed(env))
-				findings = engine.FilterMinSize(fs, min)
+				fs, errs := scanDisk(ctx, env, cfg, min)
+				findings = fs
 				for _, e := range errs {
 					warn(e)
 				}
 			}
 			var ram *ui.RAMReport
 			if doRAM {
-				procs, mem, err := procScan(ctx, env, engine.NewCPUTracker(engine.DefaultIdleWindow))
+				procs, mem, err := procScan(ctx, env, newTracker(cfg))
 				if err != nil {
 					warn(fmt.Errorf("processes: %w", err))
 				} else {
@@ -76,7 +79,7 @@ func newScanCmd() *cobra.Command {
 			if asJSON {
 				err = ui.WriteScanJSON(out, findings, ram, warnings)
 			} else {
-				err = ui.RenderScan(out, findings, ram, ui.TableOptions{Color: ColorEnabled(), Quiet: quiet, Now: time.Now()})
+				err = ui.RenderScan(out, findings, ram, ui.TableOptions{Color: ColorEnabled(), Quiet: isQuiet(cfg), Now: time.Now()})
 			}
 			if err != nil {
 				return err
