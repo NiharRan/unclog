@@ -173,7 +173,7 @@ func TestToolRunning(t *testing.T) {
 func TestHistory(t *testing.T) {
 	cfg := t.TempDir()
 	h := NewHistory(testEnv("linux", "/home/u", map[string]string{"XDG_CONFIG_HOME": cfg}))
-	if want := filepath.Join(cfg, "aiclean", "history.log"); h.Path() != want {
+	if want := filepath.Join(cfg, "unclog", "history.log"); h.Path() != want {
 		t.Fatalf("path = %q; want %q", h.Path(), want)
 	}
 

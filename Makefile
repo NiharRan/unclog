@@ -7,7 +7,7 @@ LDFLAGS := -s -w -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PK
 .PHONY: build test lint run
 
 build:
-	go build -ldflags "$(LDFLAGS)" -o bin/aiclean .
+	go build -ldflags "$(LDFLAGS)" -o bin/unclog .
 
 test:
 	go test ./...

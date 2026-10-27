@@ -32,7 +32,7 @@ func TestVersionContainsInjectedVersion(t *testing.T) {
 }
 
 func TestHelp(t *testing.T) {
-	if got := run(t, "--help"); !strings.Contains(got, "aiclean") {
+	if got := run(t, "--help"); !strings.Contains(got, "unclog") {
 		t.Fatalf("help output %q missing name", got)
 	}
 }
