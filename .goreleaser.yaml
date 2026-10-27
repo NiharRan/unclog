@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: unclog
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: unclog
+    main: .
+    binary: unclog
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X github.com/NiharRan/unclog/internal/version.Version={{ .Version }}
+      - -X github.com/NiharRan/unclog/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/NiharRan/unclog/internal/version.Date={{ .Date }}
+
+archives:
+  - id: unclog
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+# Needs the repo NiharRan/homebrew-tap and a token with write access in HOMEBREW_TAP_GITHUB_TOKEN.
+homebrew_casks:
+  - name: unclog
+    repository:
+      owner: NiharRan
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/NiharRan/unclog
+    description: Find and clean RAM, disk and process waste left by AI coding tools
+
+# Needs the repo NiharRan/scoop-bucket and a token with write access in SCOOP_GITHUB_TOKEN.
+scoops:
+  - name: unclog
+    repository:
+      owner: NiharRan
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_GITHUB_TOKEN }}"
+    homepage: https://github.com/NiharRan/unclog
+    description: Find and clean RAM, disk and process waste left by AI coding tools
+    license: MIT
+
+release:
+  github:
+    owner: NiharRan
+    name: unclog
