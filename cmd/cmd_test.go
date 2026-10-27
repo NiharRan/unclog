@@ -8,17 +8,23 @@ import (
 	"github.com/NiharRan/unclog/internal/version"
 )
 
-func run(t *testing.T, args ...string) string {
-	t.Helper()
+func runErr(args ...string) (string, error) {
 	root := newRootCmd()
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&out)
 	root.SetArgs(args)
-	if err := root.Execute(); err != nil {
+	err := root.Execute()
+	return out.String(), err
+}
+
+func run(t *testing.T, args ...string) string {
+	t.Helper()
+	out, err := runErr(args...)
+	if err != nil {
 		t.Fatalf("execute %v: %v", args, err)
 	}
-	return out.String()
+	return out
 }
 
 func TestVersionContainsInjectedVersion(t *testing.T) {
