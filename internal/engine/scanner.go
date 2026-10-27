@@ -51,3 +51,23 @@ func Scan(ctx context.Context, env Env, ds []Detector, keep func(Finding) bool) 
 	})
 	return all, failed
 }
+
+// Total sums finding sizes.
+func Total(fs []Finding) Size {
+	var t Size
+	for _, f := range fs {
+		t += f.Size
+	}
+	return t
+}
+
+// FilterMinSize drops findings smaller than min.
+func FilterMinSize(fs []Finding, min Size) []Finding {
+	var out []Finding
+	for _, f := range fs {
+		if f.Size >= min {
+			out = append(out, f)
+		}
+	}
+	return out
+}

@@ -1,0 +1,15 @@
+pnpm  8.0 GB
+  pnpm store                                cache    safe        8.0 GB  2 days ago
+
+Ollama  4.0 GB
+  llama3:latest                             model    careful     4.0 GB  -
+
+Hugging Face  3.5 GB
+  org/alpha                                 model    careful     3.0 GB  3 months ago
+  dataset org/data                          model    careful   500.0 MB  -
+
+Temp files  2.0 MB
+  a-very-long-temporary-directory-name-th…  tmp      safe        2.0 MB  30 min ago
+
+Found 15.5 GB reclaimable.
+Want this automatic? Join the app waitlist → https://github.com/NiharRan/unclog

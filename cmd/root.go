@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -15,6 +16,14 @@ const (
 	ExitNothing   = 2
 	ExitCancelled = 3
 )
+
+// exitError makes a command exit with a specific code; msg, if set, is printed to stderr.
+type exitError struct {
+	code int
+	msg  string
+}
+
+func (e *exitError) Error() string { return e.msg }
 
 var (
 	quiet   bool
@@ -30,7 +39,7 @@ func newRootCmd() *cobra.Command {
 	}
 	root.PersistentFlags().BoolVar(&quiet, "quiet", false, "hide footers and non-essential output")
 	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
-	root.AddCommand(newVersionCmd())
+	root.AddCommand(newVersionCmd(), newScanCmd())
 	return root
 }
 
@@ -40,13 +49,24 @@ func ColorEnabled() bool {
 	if noColor || os.Getenv("NO_COLOR") != "" {
 		return false
 	}
-	fi, err := os.Stdout.Stat()
+	return isTerminal(os.Stdout)
+}
+
+func isTerminal(f *os.File) bool {
+	fi, err := f.Stat()
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }
 
 // Execute runs the CLI and returns the process exit code.
 func Execute() int {
 	if err := newRootCmd().Execute(); err != nil {
+		var ee *exitError
+		if errors.As(err, &ee) {
+			if ee.msg != "" {
+				_, _ = fmt.Fprintln(os.Stderr, ee.msg)
+			}
+			return ee.code
+		}
 		_, _ = fmt.Fprintln(os.Stderr, "error:", err)
 		return ExitError
 	}
