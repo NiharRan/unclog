@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-const walkWorkers = 16
+const (
+	walkWorkers = 8
+	readBatch   = 256
+)
 
 // DirSize returns the total apparent size of regular files under path.
 // Symlinks are never followed or counted; unreadable entries are skipped.
@@ -72,34 +75,46 @@ func (w *walker) dir(ctx context.Context, path string) {
 	if ctx.Err() != nil {
 		return
 	}
-	entries, err := os.ReadDir(path)
+	d, err := os.Open(path)
 	if err != nil {
 		return
 	}
-	for _, e := range entries {
-		if ctx.Err() != nil {
+	defer func() { _ = d.Close() }()
+	// Read in batches so a directory with hundreds of thousands of entries never sits in memory at once.
+	for {
+		entries, err := d.ReadDir(readBatch)
+		for _, e := range entries {
+			if ctx.Err() != nil {
+				return
+			}
+			w.entry(ctx, path, e)
+		}
+		if err != nil { // io.EOF or a read error: either way this directory is done
 			return
 		}
-		fi, err := e.Info() // lstat-based: does not follow symlinks
-		if err != nil || fi.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		child := filepath.Join(path, e.Name())
-		if !fi.IsDir() {
-			w.file(fi)
-			continue
-		}
-		// Recurse in a new goroutine only if a worker slot is free; otherwise
-		// inline, so a full pool can never deadlock.
-		select {
-		case w.sem <- struct{}{}:
-			w.wg.Add(1)
-			go func() {
-				defer func() { <-w.sem; w.wg.Done() }()
-				w.dir(ctx, child)
-			}()
-		default:
+	}
+}
+
+func (w *walker) entry(ctx context.Context, parent string, e os.DirEntry) {
+	fi, err := e.Info() // lstat-based: does not follow symlinks
+	if err != nil || fi.Mode()&os.ModeSymlink != 0 {
+		return
+	}
+	if !fi.IsDir() {
+		w.file(fi)
+		return
+	}
+	child := filepath.Join(parent, e.Name())
+	// Recurse in a new goroutine only if a worker slot is free; otherwise
+	// inline, so a full pool can never deadlock.
+	select {
+	case w.sem <- struct{}{}:
+		w.wg.Add(1)
+		go func() {
+			defer func() { <-w.sem; w.wg.Done() }()
 			w.dir(ctx, child)
-		}
+		}()
+	default:
+		w.dir(ctx, child)
 	}
 }

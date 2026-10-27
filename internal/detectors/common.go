@@ -23,7 +23,7 @@ type target struct {
 	risk              engine.Risk
 }
 
-const measureWorkers = 8
+const measureWorkers = 4
 
 // measureTargets sizes each target concurrently. Missing paths, symlinks and empty
 // targets yield no finding, so a machine without the tool is not an error.
