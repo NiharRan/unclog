@@ -28,8 +28,12 @@ func newPSCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			cfg, err := loadConfig(cmd, env)
+			if err != nil {
+				return err
+			}
 			ctx, out := cmd.Context(), cmd.OutOrStdout()
-			tr := engine.NewCPUTracker(engine.DefaultIdleWindow)
+			tr := newTracker(cfg)
 
 			frame := func() (int, error) {
 				procs, mem, err := procScan(ctx, env, tr)

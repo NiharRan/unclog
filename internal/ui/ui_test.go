@@ -188,3 +188,20 @@ func TestPlural(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderDoctor(t *testing.T) {
+	ps := []engine.Problem{
+		{Kind: "disk", Title: "pnpm: 8.0 GB reclaimable in 1 item", Fix: "unclog clean --category cache"},
+		{Kind: "ram", Title: "2 orphaned processes using 1.0 GB of RAM", Fix: "unclog kill --orphans"},
+	}
+	var b bytes.Buffer
+	if err := RenderDoctor(&b, ps, false); err != nil {
+		t.Fatal(err)
+	}
+	golden(t, "doctor.golden", b.String())
+	b.Reset()
+	_ = RenderDoctor(&b, nil, false)
+	if b.String() != "No problems found.\n" {
+		t.Errorf("healthy output %q", b.String())
+	}
+}
