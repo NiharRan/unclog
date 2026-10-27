@@ -19,8 +19,9 @@ func env(goos string, vars map[string]string) engine.Env {
 
 func eq(t *testing.T, name, got, want string) {
 	t.Helper()
-	if got != filepath.FromSlash(want) {
-		t.Errorf("%s = %q; want %q", name, got, filepath.FromSlash(want))
+	// Compare in slash form: env overrides come back verbatim, defaults use the host separator.
+	if filepath.ToSlash(got) != filepath.ToSlash(want) {
+		t.Errorf("%s = %q; want %q", name, got, want)
 	}
 }
 
@@ -66,8 +67,9 @@ func TestGoCache(t *testing.T) {
 	eq(t, "env wins", GoCache(ctx, env("linux", map[string]string{"GOCACHE": "/g"})), "/g")
 
 	e := env("linux", nil)
-	e.Run = func(context.Context, string, ...string) (string, error) { return filepath.FromSlash("/from/go"), nil }
-	eq(t, "command", GoCache(ctx, e), "/from/go")
+	fromGo := filepath.Join(t.TempDir(), "from", "go") // must be absolute on every OS, drive letter included
+	e.Run = func(context.Context, string, ...string) (string, error) { return fromGo, nil }
+	eq(t, "command", GoCache(ctx, e), fromGo)
 
 	e.Run = func(context.Context, string, ...string) (string, error) { return "", errors.New("no go") }
 	eq(t, "fallback", GoCache(ctx, e), "/home/u/.cache/go-build")
@@ -83,6 +85,7 @@ func TestNpmCache(t *testing.T) {
 	eq(t, "windows default", NpmCache(ctx, env("windows", nil)), "/home/u/AppData/Local/npm-cache")
 
 	e := env("linux", nil)
-	e.Run = func(context.Context, string, ...string) (string, error) { return filepath.FromSlash("/from/npm"), nil }
-	eq(t, "command", NpmCache(ctx, e), "/from/npm")
+	fromNpm := filepath.Join(t.TempDir(), "from", "npm")
+	e.Run = func(context.Context, string, ...string) (string, error) { return fromNpm, nil }
+	eq(t, "command", NpmCache(ctx, e), fromNpm)
 }

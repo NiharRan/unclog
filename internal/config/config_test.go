@@ -16,7 +16,8 @@ func testEnv(t *testing.T, goos string) engine.Env {
 	t.Helper()
 	cfgDir := t.TempDir()
 	vars := map[string]string{"XDG_CONFIG_HOME": cfgDir, "APPDATA": cfgDir}
-	return engine.Env{Home: "/home/u", OS: goos, Getenv: func(k string) string { return vars[k] }}
+	// A real temp dir as home, so ~/ expands to an absolute path (with a drive letter on Windows).
+	return engine.Env{Home: t.TempDir(), OS: goos, Getenv: func(k string) string { return vars[k] }}
 }
 
 func write(t *testing.T, env engine.Env, content string) {
@@ -47,11 +48,12 @@ func TestMissingAndEmptyFileGiveDefaults(t *testing.T) {
 
 func TestLoadAllKeys(t *testing.T) {
 	env := testEnv(t, "linux")
+	data := filepath.ToSlash(filepath.Join(t.TempDir(), "data")) // forward slashes keep YAML escapes out of it
 	write(t, env, `
 exclude:
   - ~/.cache/pip
   - "*.log"
-custom_paths: ["~/.cache/my-tool", "/opt/data"]
+custom_paths: ["~/.cache/my-tool", "`+data+`"]
 min_size: 100MB
 orphan_idle_minutes: 30
 quiet: true
@@ -61,8 +63,8 @@ update_check: true
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.Exclude, []string{"/home/u/.cache/pip", "*.log"}) ||
-		!slices.Equal(cfg.CustomPaths, []string{"/home/u/.cache/my-tool", "/opt/data"}) ||
+	if !slices.Equal(cfg.Exclude, []string{filepath.Join(env.Home, ".cache", "pip"), "*.log"}) ||
+		!slices.Equal(cfg.CustomPaths, []string{filepath.Join(env.Home, ".cache", "my-tool"), data}) ||
 		cfg.MinSize != 100<<20 || cfg.OrphanIdleMinutes != 30 || !cfg.Quiet || !cfg.UpdateCheck {
 		t.Errorf("cfg = %+v", cfg)
 	}

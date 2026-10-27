@@ -224,7 +224,7 @@ func TestCustomPathsAndMinSizeFromConfig(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(custom, "f"), make([]byte, 4096), 0o644)
 	useDetectorsKeepEnv(t, fake{name: "a", fs: []engine.Finding{finding(filepath.Join(home, ".cache", "tiny"), 10)}})
 
-	writeCfg(t, file, "custom_paths: [\"~/my-tool-cache\", \""+filepath.Join(home, "Documents")+"\"]\n")
+	writeCfg(t, file, "custom_paths: [\"~/my-tool-cache\", \""+filepath.ToSlash(filepath.Join(home, "Documents"))+"\"]\n")
 	out, _ := runErr("scan", "--json")
 	var doc ui.ScanJSON
 	_ = json.Unmarshal([]byte(out), &doc)

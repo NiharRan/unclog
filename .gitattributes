@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Golden files are compared byte for byte, so they must stay LF on Windows checkouts.
+*.golden text eol=lf
+testdata/** text eol=lf
