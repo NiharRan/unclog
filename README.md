@@ -4,21 +4,7 @@ Find and clean the RAM, disk and process waste that AI coding tools leave behind
 
 `unclog` is a free, open-source command-line tool for macOS, Linux and Windows. It looks at what Claude Code, Cursor, VS Code, Windsurf, Ollama, LM Studio, Hugging Face, Docker, MCP servers and your package managers are using, shows it grouped by tool, and cleans what you pick. It is one small binary, makes no network calls and sends no telemetry.
 
-```
-$ unclog scan
-pnpm  7.8 GB
-  pnpm store       cache    safe        7.8 GB  8 days ago
-
-Windsurf  1.1 GB
-  cache            cache    safe      652.0 MB  3 months ago
-  local file history  logs  review    265.7 MB  3 months ago
-
-RAM  381.1 MB across 2 processes
-  Claude Code     2 processes   381.1 MB  1 orphaned (3.9 MB)
-  system: 6.7 GB used of 8.0 GB, pressure warning
-
-Found 9.9 GB reclaimable and 3.9 MB RAM in 1 orphaned process.
-```
+![unclog scan finds caches, models and orphaned processes, then clean --dry-run shows what it would move to the Trash](assets/demo.gif)
 
 ## Install
 
