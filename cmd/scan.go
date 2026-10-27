@@ -52,13 +52,7 @@ func newScanCmd() *cobra.Command {
 
 			clear := progress(asJSON)
 			if doDisk {
-				fs, errs := engine.Scan(ctx, env, detectorList(), func(f engine.Finding) bool {
-					if f.Path == "" && len(f.CleanVia) > 0 {
-						return true
-					}
-					denied, _ := safety.IsDenied(f.Path, env)
-					return !denied
-				})
+				fs, errs := engine.Scan(ctx, env, detectorList(), keepAllowed(env))
 				findings = engine.FilterMinSize(fs, min)
 				for _, e := range errs {
 					warn(e)
@@ -106,4 +100,16 @@ func progress(skip bool) (clear func()) {
 	}
 	_, _ = fmt.Fprint(os.Stderr, "Scanning…")
 	return func() { _, _ = fmt.Fprint(os.Stderr, "\r\033[K") }
+}
+
+// keepAllowed drops findings whose path is on the safety denylist. Items with no path
+// (Docker) are removed through a CLI and have nothing to check.
+func keepAllowed(env engine.Env) func(engine.Finding) bool {
+	return func(f engine.Finding) bool {
+		if f.Path == "" && len(f.CleanVia) > 0 {
+			return true
+		}
+		denied, _ := safety.IsDenied(f.Path, env)
+		return !denied
+	}
 }

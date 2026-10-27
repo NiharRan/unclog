@@ -53,3 +53,8 @@ func (h *History) Append(e Entry) error {
 	}
 	return f.Close()
 }
+
+// Log appends an entry stamped now; it makes History an engine.ActionLog.
+func (h *History) Log(action, target string, size engine.Size, outcome string) error {
+	return h.Append(Entry{Time: time.Now(), Action: action, Target: target, Size: size, Outcome: outcome})
+}
