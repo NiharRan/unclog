@@ -6,6 +6,8 @@ Find and clean the RAM, disk and process waste that AI coding tools leave behind
 
 ![unclog scan finds caches, models and orphaned processes, then clean --dry-run shows what it would move to the Trash](assets/demo.gif)
 
+Full tutorial: [AI coding tools hid 15 GB on my Mac. unclog found it](https://www.nihardaily.com/posts/ai-coding-tools-hid-15-gb-on-my-mac-unclog-found-it).
+
 ## Install
 
 macOS and Linux (Homebrew):
