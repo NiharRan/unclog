@@ -53,9 +53,9 @@ func newScanCmd() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "warning:", e)
 			}
 
-			clear := progress(asJSON || isQuiet(cfg))
+			update, clear := progress(asJSON || isQuiet(cfg))
 			if doDisk {
-				fs, errs := scanDisk(ctx, env, cfg, min)
+				fs, errs := scanDisk(ctx, env, cfg, min, update)
 				findings = fs
 				for _, e := range errs {
 					warn(e)
@@ -96,13 +96,17 @@ func newScanCmd() *cobra.Command {
 	return c
 }
 
-// progress shows a transient "Scanning…" on stderr, only when stderr is a terminal.
-func progress(skip bool) (clear func()) {
+// progress draws a live bar on stderr while detectors run, only when stderr is a terminal.
+// update is safe to pass to scanDisk; clear erases the line.
+func progress(skip bool) (update func(done, total int, name string), clear func()) {
 	if skip || quiet || !isTerminal(os.Stderr) {
-		return func() {}
+		return nil, func() {}
 	}
 	_, _ = fmt.Fprint(os.Stderr, "Scanning…")
-	return func() { _, _ = fmt.Fprint(os.Stderr, "\r\033[K") }
+	update = func(done, total int, name string) {
+		_, _ = fmt.Fprintf(os.Stderr, "\r\033[KScanning %s %d/%d  %s", ui.Bar(float64(done)/float64(total), 20), done, total, name)
+	}
+	return update, func() { _, _ = fmt.Fprint(os.Stderr, "\r\033[K") }
 }
 
 // keepAllowed drops findings whose path is on the safety denylist. Items with no path

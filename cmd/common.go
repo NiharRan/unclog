@@ -22,13 +22,13 @@ func loadConfig(cmd *cobra.Command, env engine.Env) (config.Config, error) {
 
 // scanDisk runs every detector plus the configured custom paths and drops anything on the
 // safety denylist or in the config exclusions. Findings smaller than min are hidden.
-func scanDisk(ctx context.Context, env engine.Env, cfg config.Config, min engine.Size) ([]engine.Finding, []error) {
+func scanDisk(ctx context.Context, env engine.Env, cfg config.Config, min engine.Size, onDone func(done, total int, name string)) ([]engine.Finding, []error) {
 	ds := append([]engine.Detector(nil), detectorList()...)
 	if len(cfg.CustomPaths) > 0 {
 		ds = append(ds, detectors.Custom{Paths: cfg.CustomPaths})
 	}
 	allowed := keepAllowed(env)
-	fs, errs := engine.Scan(ctx, env, ds, func(f engine.Finding) bool { return cfg.Keep(f) && allowed(f) })
+	fs, errs := engine.ScanProgress(ctx, env, ds, func(f engine.Finding) bool { return cfg.Keep(f) && allowed(f) }, onDone)
 	return engine.FilterMinSize(fs, min), errs
 }
 

@@ -60,8 +60,8 @@ review and careful items are listed unchecked. Files go to the OS Trash unless -
 			}
 			ctx, out, errOut := cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr()
 
-			clear := progress(isQuiet(cfg))
-			findings, errs := scanDisk(ctx, env, cfg, cfg.MinSize)
+			update, clear := progress(isQuiet(cfg))
+			findings, errs := scanDisk(ctx, env, cfg, cfg.MinSize, update)
 			clear()
 			if err := ctx.Err(); err != nil {
 				return err

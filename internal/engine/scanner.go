@@ -12,6 +12,14 @@ import (
 // keep, if non-nil, drops findings it rejects (callers pass a safety denylist check).
 // Detectors must honour ctx: Scan waits for all of them.
 func Scan(ctx context.Context, env Env, ds []Detector, keep func(Finding) bool) ([]Finding, []error) {
+	return ScanProgress(ctx, env, ds, keep, nil)
+}
+
+// ScanProgress is Scan that calls onDone(done, total, name) each time a detector finishes.
+// onDone may be called from several goroutines, but never concurrently.
+func ScanProgress(ctx context.Context, env Env, ds []Detector, keep func(Finding) bool, onDone func(done, total int, name string)) ([]Finding, []error) {
+	var mu sync.Mutex
+	done := 0
 	res := make([][]Finding, len(ds))
 	errs := make([]error, len(ds))
 	var wg sync.WaitGroup
@@ -19,6 +27,14 @@ func Scan(ctx context.Context, env Env, ds []Detector, keep func(Finding) bool) 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer func() {
+				if onDone != nil {
+					mu.Lock()
+					done++
+					onDone(done, len(ds), d.Name())
+					mu.Unlock()
+				}
+			}()
 			fs, err := d.Scan(ctx, env)
 			if err != nil {
 				errs[i] = fmt.Errorf("%s: %w", d.Name(), err)

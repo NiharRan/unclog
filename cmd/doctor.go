@@ -34,8 +34,8 @@ func newDoctorCmd() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "warning:", e)
 			}
 
-			clear := progress(asJSON || isQuiet(cfg))
-			findings, errs := scanDisk(ctx, env, cfg, cfg.MinSize)
+			update, clear := progress(asJSON || isQuiet(cfg))
+			findings, errs := scanDisk(ctx, env, cfg, cfg.MinSize, update)
 			for _, e := range errs {
 				warn(e)
 			}

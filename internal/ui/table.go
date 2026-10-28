@@ -19,6 +19,8 @@ const WaitlistURL = "https://github.com/NiharRan/unclog"
 
 const maxLabel = 40
 
+const barWidth = 16
+
 type TableOptions struct {
 	Color bool
 	Quiet bool // hides the waitlist footer
@@ -100,8 +102,12 @@ func RenderScan(w io.Writer, fs []engine.Finding, ram *RAMReport, o TableOptions
 	}
 	sort.SliceStable(tools, func(i, j int) bool { return totals[tools[i]] > totals[tools[j]] })
 
+	var grand engine.Size
+	for _, t := range totals {
+		grand += t
+	}
 	for _, tool := range tools {
-		fmt.Fprintf(&b, "%s  %s\n", st.bold.Render(tool), totals[tool])
+		fmt.Fprintf(&b, "%s  %s  %s\n", st.bold.Render(tool), totals[tool], shareBar(uint64(totals[tool]), uint64(grand), st.safe))
 		for _, f := range groups[tool] {
 			fmt.Fprintf(&b, "  %s  %s  %s  %s  %s\n",
 				pad(truncate(f.Label), labelW),
@@ -141,16 +147,33 @@ func writeRAM(b *strings.Builder, ram *RAMReport, st styles) {
 		if g.Orphans > 0 {
 			orphan = st.careful.Render(fmt.Sprintf("%d orphaned (%s)", g.Orphans, engine.Size(g.OrphanRSS)))
 		}
-		row := fmt.Sprintf("  %s  %s  %s", pad(g.Tool, toolW), padLeft(plural(g.Count, "process"), 12), padLeft(engine.Size(g.RSS).String(), 9))
+		row := fmt.Sprintf("  %s  %s  %s  %s", pad(g.Tool, toolW), padLeft(plural(g.Count, "process"), 12), padLeft(engine.Size(g.RSS).String(), 9), shareBar(g.RSS, total, st.review))
 		if orphan != "" {
 			row += "  " + orphan
 		}
 		b.WriteString(row + "\n")
 	}
 	if m := ram.Mem; m.Total > 0 {
-		fmt.Fprintf(b, "  %s\n", st.dim.Render(fmt.Sprintf("system: %s used of %s, pressure %s", engine.Size(m.Used), engine.Size(m.Total), m.Pressure)))
+		fmt.Fprintf(b, "  %s  %s\n", st.dim.Render(fmt.Sprintf("system: %s used of %s, pressure %s", engine.Size(m.Used), engine.Size(m.Total), m.Pressure)), pressureStyle(st, m.Used, m.Total).Render(Bar(percent(m.Used, m.Total), barWidth)))
 	}
 	b.WriteString("\n")
+}
+
+// shareBar is a bar plus a right-aligned percentage, e.g. "████░░░░  42%".
+func shareBar(part, whole uint64, style lipgloss.Style) string {
+	f := percent(part, whole)
+	return style.Render(Bar(f, barWidth)) + " " + padLeft(fmt.Sprintf("%d%%", int(f*100+0.5)), 4)
+}
+
+// pressureStyle turns the system memory bar yellow above 70% and red above 90%.
+func pressureStyle(st styles, used, total uint64) lipgloss.Style {
+	switch f := percent(used, total); {
+	case f > 0.9:
+		return st.careful
+	case f > 0.7:
+		return st.review
+	}
+	return st.safe
 }
 
 func truncate(s string) string {

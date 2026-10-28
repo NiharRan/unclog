@@ -1,21 +1,21 @@
-pnpm  8.0 GB
+pnpm  8.0 GB  ████████░░░░░░░░  52%
   pnpm store                                cache    safe        8.0 GB  2 days ago
 
-Ollama  4.0 GB
+Ollama  4.0 GB  ████░░░░░░░░░░░░  26%
   llama3:latest                             model    careful     4.0 GB  -
 
-Hugging Face  3.5 GB
+Hugging Face  3.5 GB  ████░░░░░░░░░░░░  23%
   org/alpha                                 model    careful     3.0 GB  3 months ago
   dataset org/data                          model    careful   500.0 MB  -
 
-Temp files  2.0 MB
+Temp files  2.0 MB  █░░░░░░░░░░░░░░░   0%
   a-very-long-tempora…at-must-be-truncated  tmp      safe        2.0 MB  30 min ago
 
 RAM  7.7 GB across 5 processes
-  Ollama          1 process     5.0 GB
-  Cursor          1 process     1.5 GB
-  MCP servers   3 processes     1.2 GB  2 orphaned (1.1 GB)
-  system: 11.0 GB used of 16.0 GB, pressure warning
+  Ollama          1 process     5.0 GB  ██████████░░░░░░  65%
+  Cursor          1 process     1.5 GB  ███░░░░░░░░░░░░░  19%
+  MCP servers   3 processes     1.2 GB  ██░░░░░░░░░░░░░░  16%  2 orphaned (1.1 GB)
+  system: 11.0 GB used of 16.0 GB, pressure warning  ███████████░░░░░
 
 Found 15.5 GB reclaimable and 1.1 GB RAM in 2 orphaned processes.
 Want this automatic? Join the app waitlist → https://github.com/NiharRan/unclog

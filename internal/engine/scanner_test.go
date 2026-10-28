@@ -83,3 +83,17 @@ func TestScanCancelledReturnsPromptly(t *testing.T) {
 		t.Fatal("Scan did not return after context cancel")
 	}
 }
+
+func TestScanProgressReportsEveryDetector(t *testing.T) {
+	ds := []Detector{fakeDetector{name: "a"}, fakeDetector{name: "b"}, fakeDetector{name: "c"}}
+	var dones []int
+	ScanProgress(context.Background(), Env{}, ds, nil, func(done, total int, _ string) {
+		if total != 3 {
+			t.Errorf("total = %d, want 3", total)
+		}
+		dones = append(dones, done)
+	})
+	if len(dones) != 3 || dones[2] != 3 {
+		t.Errorf("done sequence = %v, want 1,2,3", dones)
+	}
+}
