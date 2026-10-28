@@ -53,6 +53,11 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/NiharRan/unclog
     description: Find and clean RAM, disk and process waste left by AI coding tools
+    # shortcut: binary is not notarized, so strip quarantine or Gatekeeper offers "Move to Trash"; remove once notarized.
+    hooks:
+      post:
+        install_steps: |
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/unclog"]
 
 # Needs the repo NiharRan/scoop-bucket and a token with write access in SCOOP_GITHUB_TOKEN.
 scoops:
