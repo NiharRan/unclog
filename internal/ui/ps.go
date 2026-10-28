@@ -58,7 +58,7 @@ func RenderPS(w io.Writer, procs []engine.Proc, mem engine.MemInfo, o TableOptio
 	st := newStyles(o.Color)
 	var b strings.Builder
 	if len(procs) == 0 {
-		b.WriteString("No AI-related processes found.\n")
+		b.WriteString("No AI-related processes found. Nothing from your AI tools is running right now.\n")
 		_, err := io.WriteString(w, b.String())
 		return err
 	}

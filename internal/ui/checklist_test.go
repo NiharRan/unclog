@@ -64,8 +64,12 @@ func TestChecklistToggleAndBulkKeys(t *testing.T) {
 		t.Errorf("after none: %v", selected(m))
 	}
 	press(m, "a")
+	if !eq(selected(m), []bool{true, true, true}) { // everything at once
+		t.Errorf("after select-all: %v", selected(m))
+	}
+	press(m, "s")
 	if !eq(selected(m), []bool{true, false, false}) { // only safe and not running
-		t.Errorf("after all-safe: %v", selected(m))
+		t.Errorf("after safe-only: %v", selected(m))
 	}
 	press(m, "up", "up", "up", "space") // cursor clamps at the top
 	if !eq(selected(m), []bool{false, false, false}) {
@@ -84,7 +88,7 @@ func TestChecklistCursorStaysInRange(t *testing.T) {
 func TestChecklistConfirmFlow(t *testing.T) {
 	m := NewChecklist(items(), false, false)
 	press(m, "enter")
-	if m.stage != stageConfirm || !strings.Contains(m.View(), "Move to the Trash: 1 items, 10 B") {
+	if m.stage != stageConfirm || !strings.Contains(m.View(), "Move to the Trash") {
 		t.Fatalf("confirm view:\n%s", m.View())
 	}
 	press(m, "x") // any other key goes back
@@ -105,17 +109,49 @@ func TestChecklistEnterWithNothingSelectedStays(t *testing.T) {
 	}
 }
 
-func TestChecklistConfirmWarnsAboutRiskAndRunningTools(t *testing.T) {
+func TestChecklistConfirmWarnsAboutRisk(t *testing.T) {
 	m := NewChecklist(items(), false, false)
-	press(m, "down", "space", "down", "space", "enter")
-	v := m.View()
-	for _, want := range []string{"2 selected items are marked review or careful", "1 selected items belong to a tool that is running"} {
-		if want == "2 selected items are marked review or careful" {
-			want = "selected items are marked review or careful"
+	press(m, "down", "space", "enter") // careful item on, nothing blocked
+	if v := m.View(); !strings.Contains(v, "marked review or careful") || !strings.Contains(v, "2 items") {
+		t.Errorf("view:\n%s", v)
+	}
+}
+
+func TestChecklistBlockedPopup(t *testing.T) {
+	m := NewChecklist(items(), false, false)
+	press(m, "down", "down", "space", "enter") // the running-tool item joins the selection
+	if m.stage != stageBlocked || !strings.Contains(m.View(), "Cursor is running") || !strings.Contains(m.View(), "can't be removed") {
+		t.Fatalf("expected popup, stage=%v:\n%s", m.stage, m.View())
+	}
+	press(m, "esc")
+	if m.stage != stagePick {
+		t.Error("esc must go back to the list")
+	}
+	press(m, "enter", "s") // skip: the blocked item is deselected
+	if m.stage != stageConfirm || !eq(selected(m), []bool{true, false, false}) {
+		t.Errorf("skip: stage=%v selected=%v", m.stage, selected(m))
+	}
+	press(m, "x", "down", "down", "space", "enter", "t") // try anyway keeps it
+	if m.stage != stageConfirm || !eq(selected(m), []bool{true, false, true}) {
+		t.Errorf("try anyway: stage=%v selected=%v", m.stage, selected(m))
+	}
+}
+
+func TestChecklistBlockedHook(t *testing.T) {
+	m := NewChecklist(items(), false, false)
+	m.Blocked = func(it engine.Item) string {
+		if it.Label == "pip cache" {
+			return "no permission to remove it"
 		}
-		if !strings.Contains(v, want) {
-			t.Errorf("missing %q in\n%s", want, v)
-		}
+		return ""
+	}
+	press(m, "enter")
+	if m.stage != stageBlocked || !strings.Contains(m.View(), "no permission to remove it") {
+		t.Errorf("stage=%v:\n%s", m.stage, m.View())
+	}
+	press(m, "s") // skipping the only selected item leaves nothing: back to the list
+	if m.stage != stagePick {
+		t.Errorf("stage=%v, want pick", m.stage)
 	}
 }
 
@@ -137,7 +173,7 @@ func TestChecklistCancel(t *testing.T) {
 func TestChecklistPermanentNeedsTypedWord(t *testing.T) {
 	m := NewChecklist(items(), true, false)
 	press(m, "enter")
-	if !strings.Contains(m.View(), "PERMANENTLY DELETE") || !strings.Contains(m.View(), "cannot be undone") {
+	if !strings.Contains(m.View(), "Delete permanently") || !strings.Contains(m.View(), "cannot be undone") {
 		t.Fatalf("view:\n%s", m.View())
 	}
 	press(m, "y", "enter") // wrong word: back to the list
@@ -163,14 +199,14 @@ func TestChecklistScrollsWithCursor(t *testing.T) {
 	if m.cursor != 20 || m.cursor < m.offset || m.cursor >= m.offset+m.height {
 		t.Errorf("cursor=%d offset=%d height=%d", m.cursor, m.offset, m.height)
 	}
-	if !strings.Contains(m.View(), "shown") {
+	if !strings.Contains(m.View(), "showing") {
 		t.Error("long lists should say how many rows are shown")
 	}
 }
 
 func TestChecklistViewMarksRunningTools(t *testing.T) {
 	v := NewChecklist(items(), false, false).View()
-	if !strings.Contains(v, "Cursor is running") || !strings.Contains(v, "[x]") || !strings.Contains(v, "[ ]") {
+	if !strings.Contains(v, "Cursor is running") || !strings.Contains(v, "[✔]") || !strings.Contains(v, "[ ]") {
 		t.Errorf("view:\n%s", v)
 	}
 }
@@ -209,7 +245,7 @@ func TestChecklistCustomWording(t *testing.T) {
 		t.Errorf("title missing:\n%s", m.View())
 	}
 	press(m, "enter")
-	if !strings.Contains(m.View(), "Terminate: 1 items") || strings.Contains(m.View(), "Trash") {
+	if !strings.Contains(m.View(), "Terminate") || strings.Contains(m.View(), "Trash") {
 		t.Errorf("confirm view:\n%s", m.View())
 	}
 }

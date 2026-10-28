@@ -30,18 +30,18 @@ func renderResults(w io.Writer, results []engine.Result, color, dry bool) error 
 		switch r.Outcome {
 		case engine.Refused:
 			refused++
-			fmt.Fprintf(&b, "%s %s  %s\n", st.review.Render("skipped"), label, st.dim.Render(r.Err.Error()))
+			fmt.Fprintf(&b, "%s %s %s  %s\n", st.review.Render(symWarn), st.review.Render("skipped"), label, st.dim.Render(r.Err.Error()))
 		case engine.Failed:
 			failed++
-			fmt.Fprintf(&b, "%s %s  %s\n", st.careful.Render("failed "), label, r.Err)
+			fmt.Fprintf(&b, "%s %s %s  %s\n", st.careful.Render(symFail), st.careful.Render("failed "), label, r.Err)
 		default:
 			n++
 			total += f.Size
 			trashed = trashed || r.Outcome == engine.Trashed
 			word := map[engine.Outcome]string{engine.Trashed: "trashed", engine.Deleted: "deleted", engine.Ran: "cleaned", engine.DryRun: "would " + r.Action}[r.Outcome]
-			fmt.Fprintf(&b, "%s %s  %s\n", st.safe.Render(pad(word, 7)), pad(label, 0), st.dim.Render(f.Size.String()))
+			fmt.Fprintf(&b, "%s %s %s  %s\n", st.safe.Render(symOK), st.safe.Render(pad(word, 7)), label, st.dim.Render(f.Size.String()))
 			if r.Err != nil {
-				fmt.Fprintf(&b, "        %s\n", st.review.Render(r.Err.Error()))
+				fmt.Fprintf(&b, "          %s\n", st.review.Render(r.Err.Error()))
 			}
 		}
 	}
@@ -80,15 +80,15 @@ func RenderKill(w io.Writer, results []engine.KillResult, dry, color bool) error
 		switch r.Outcome {
 		case engine.Refused:
 			refused++
-			fmt.Fprintf(&b, "%s %s  %s\n", st.review.Render("skipped"), label, st.dim.Render(r.Err.Error()))
+			fmt.Fprintf(&b, "%s %s %s  %s\n", st.review.Render(symWarn), st.review.Render("skipped"), label, st.dim.Render(r.Err.Error()))
 		case engine.Failed:
 			failed++
-			fmt.Fprintf(&b, "%s %s  %s\n", st.careful.Render("failed "), label, r.Err)
+			fmt.Fprintf(&b, "%s %s %s  %s\n", st.careful.Render(symFail), st.careful.Render("failed "), label, r.Err)
 		default:
 			n++
 			rss += p.RSS
 			word := map[engine.Outcome]string{engine.Terminated: "stopped", engine.Killed: "killed", engine.DryRun: "would stop"}[r.Outcome]
-			fmt.Fprintf(&b, "%s %s  %s\n", st.safe.Render(pad(word, 7)), label, st.dim.Render(engine.Size(p.RSS).String()))
+			fmt.Fprintf(&b, "%s %s %s  %s\n", st.safe.Render(symOK), st.safe.Render(pad(word, 7)), label, st.dim.Render(engine.Size(p.RSS).String()))
 		}
 	}
 	b.WriteString("\n")

@@ -14,11 +14,11 @@ func RenderDoctor(w io.Writer, problems []engine.Problem, color bool) error {
 	st := newStyles(color)
 	var b strings.Builder
 	if len(problems) == 0 {
-		b.WriteString("No problems found.\n")
+		b.WriteString(st.safe.Render(symOK) + " No problems found. Nothing is wasting noticeable space or memory.\n")
 	} else {
 		fmt.Fprintf(&b, "%s\n\n", st.bold.Render(fmt.Sprintf("Top %s", plural(len(problems), "problem"))))
 		for i, p := range problems {
-			fmt.Fprintf(&b, "%d. %s\n   %s\n", i+1, p.Title, st.dim.Render("fix: ")+st.safe.Render(p.Fix))
+			fmt.Fprintf(&b, "%s %d. %s\n     %s\n", st.review.Render(symWarn), i+1, p.Title, st.dim.Render("fix: ")+st.safe.Render(p.Fix))
 		}
 	}
 	_, err := io.WriteString(w, b.String())

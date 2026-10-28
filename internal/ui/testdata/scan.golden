@@ -12,4 +12,5 @@ Temp files  2.0 MB  █░░░░░░░░░░░░░░░   0%
   a-very-long-tempora…at-must-be-truncated  tmp      safe        2.0 MB  30 min ago
 
 Found 15.5 GB reclaimable.
+Next: run `unclog clean` to review and remove these.
 Want this automatic? Join the app waitlist → https://github.com/NiharRan/unclog

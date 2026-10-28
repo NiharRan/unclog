@@ -72,7 +72,7 @@ func TestRenderScanQuietHidesFooter(t *testing.T) {
 }
 
 func TestRenderScanEmpty(t *testing.T) {
-	if got := render(t, nil, TableOptions{Now: now}); got != "Nothing found.\n" {
+	if got := render(t, nil, TableOptions{Now: now}); got != "Nothing found. Your AI tools are not using noticeable disk space or memory.\n" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -201,7 +201,7 @@ func TestRenderDoctor(t *testing.T) {
 	golden(t, "doctor.golden", b.String())
 	b.Reset()
 	_ = RenderDoctor(&b, nil, false)
-	if b.String() != "No problems found.\n" {
+	if b.String() != "✔ No problems found. Nothing is wasting noticeable space or memory.\n" {
 		t.Errorf("healthy output %q", b.String())
 	}
 }

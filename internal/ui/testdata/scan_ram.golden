@@ -18,4 +18,5 @@ RAM  7.7 GB across 5 processes
   system: 11.0 GB used of 16.0 GB, pressure warning  ███████████░░░░░
 
 Found 15.5 GB reclaimable and 1.1 GB RAM in 2 orphaned processes.
+Next: run `unclog clean` for files and `unclog kill --orphans` for processes.
 Want this automatic? Join the app waitlist → https://github.com/NiharRan/unclog

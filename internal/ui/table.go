@@ -21,18 +21,28 @@ const maxLabel = 40
 
 const barWidth = 16
 
+// Status marks shared by every screen.
+const (
+	symOK   = "✔"
+	symWarn = "!"
+	symFail = "✖"
+)
+
 type TableOptions struct {
 	Color bool
 	Quiet bool // hides the waitlist footer
 	Now   time.Time
 }
 
-type styles struct{ bold, dim, safe, review, careful lipgloss.Style }
+type styles struct {
+	bold, dim, safe, review, careful lipgloss.Style
+	color                            bool
+}
 
 func newStyles(color bool) styles {
 	plain := lipgloss.NewStyle()
 	if !color {
-		return styles{plain, plain, plain, plain, plain}
+		return styles{plain, plain, plain, plain, plain, false}
 	}
 	return styles{
 		bold:    plain.Bold(true),
@@ -40,6 +50,7 @@ func newStyles(color bool) styles {
 		safe:    plain.Foreground(lipgloss.Color("2")),
 		review:  plain.Foreground(lipgloss.Color("3")),
 		careful: plain.Foreground(lipgloss.Color("1")),
+		color:   true,
 	}
 }
 
@@ -84,7 +95,7 @@ func RenderScan(w io.Writer, fs []engine.Finding, ram *RAMReport, o TableOptions
 	var b strings.Builder
 
 	if len(fs) == 0 && (ram == nil || len(ram.Procs) == 0) {
-		_, err := io.WriteString(w, "Nothing found.\n")
+		_, err := io.WriteString(w, "Nothing found. Your AI tools are not using noticeable disk space or memory.\n")
 		return err
 	}
 
@@ -124,11 +135,31 @@ func RenderScan(w io.Writer, fs []engine.Finding, ram *RAMReport, o TableOptions
 	}
 
 	b.WriteString(st.bold.Render(Summary(fs, ram)) + "\n")
+	if hint := nextStep(fs, ram); hint != "" {
+		b.WriteString(st.dim.Render("Next: "+hint) + "\n")
+	}
 	if !o.Quiet {
 		fmt.Fprintf(&b, "%s\n", st.dim.Render("Want this automatic? Join the app waitlist → "+WaitlistURL))
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// nextStep points at the command that acts on what the scan found.
+func nextStep(fs []engine.Finding, ram *RAMReport) string {
+	var orphans int
+	if ram != nil {
+		orphans, _ = engine.OrphanTotals(ram.Procs)
+	}
+	switch {
+	case len(fs) > 0 && orphans > 0:
+		return "run `unclog clean` for files and `unclog kill --orphans` for processes."
+	case len(fs) > 0:
+		return "run `unclog clean` to review and remove these."
+	case orphans > 0:
+		return "run `unclog kill --orphans` to stop them."
+	}
+	return ""
 }
 
 func writeRAM(b *strings.Builder, ram *RAMReport, st styles) {

@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/Bios-Marcel/wastebasket/v2"
 	"github.com/NiharRan/unclog/internal/engine"
 	"github.com/NiharRan/unclog/internal/safety"
+	"github.com/NiharRan/unclog/internal/trash"
 	"github.com/NiharRan/unclog/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -17,17 +18,39 @@ import (
 // Overridable in tests.
 var (
 	newCleaner = func(env engine.Env) *engine.Cleaner {
-		return &engine.Cleaner{Guard: safety.NewChecker(env), Log: safety.NewHistory(env), Trash: func(p string) error { return wastebasket.Trash(p) }, Exec: engine.DefaultExec}
+		return &engine.Cleaner{Guard: safety.NewChecker(env), Log: safety.NewHistory(env), Trash: trash.Move, Exec: engine.DefaultExec}
 	}
 	isInteractive = func() bool { return isTerminal(os.Stdin) && isTerminal(os.Stdout) }
 	runChecklist  = func(items []engine.Item, permanent bool) ([]engine.Item, bool, error) {
 		m := ui.NewChecklist(items, permanent, ColorEnabled())
+		m.Blocked = blockedReason()
 		if _, err := tea.NewProgram(m).Run(); err != nil {
 			return nil, false, err
 		}
 		return m.Items(), m.Confirmed, nil
 	}
 )
+
+// blockedReason explains why an item cannot be removed right now, or "" if it can.
+// shortcut: write permission is judged from the parent folder's owner bit, not a real access check.
+func blockedReason() func(engine.Item) string {
+	var chk *safety.Checker
+	if env, err := newEnv(); err == nil {
+		chk = safety.NewChecker(env)
+	}
+	return func(it engine.Item) string {
+		if it.Path == "" {
+			return ""
+		}
+		if fi, err := os.Stat(filepath.Dir(it.Path)); err == nil && fi.Mode().Perm()&0o200 == 0 {
+			return "no permission to remove it"
+		}
+		if chk != nil && chk.IsOpen(it.Path) {
+			return "in use by a running program"
+		}
+		return ""
+	}
+}
 
 func newCleanCmd() *cobra.Command {
 	var dryRun, yes, permanent bool
