@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -19,6 +20,20 @@ import (
 var (
 	newCleaner = func(env engine.Env) *engine.Cleaner {
 		return &engine.Cleaner{Guard: safety.NewChecker(env), Log: safety.NewHistory(env), Trash: trash.Move, Exec: engine.DefaultExec}
+	}
+	// runExecute removes the selected items; on a terminal it shows live progress.
+	runExecute = func(ctx context.Context, c *engine.Cleaner, items []engine.Item, o engine.ExecOptions) ([]engine.Result, error) {
+		if o.DryRun || !isTerminal(os.Stdout) {
+			return c.Execute(ctx, items, o), nil
+		}
+		title := "Moving to the Trash"
+		if o.Permanent {
+			title = "Deleting permanently"
+		}
+		return ui.RunProgress(ctx, title, items, ColorEnabled(), func(ctx context.Context, onStart func(int, int, engine.Finding), onResult func(int, int, engine.Result)) []engine.Result {
+			o.OnStart, o.OnResult = onStart, onResult
+			return c.Execute(ctx, items, o)
+		})
 	}
 	isInteractive = func() bool { return isTerminal(os.Stdin) && isTerminal(os.Stdout) }
 	runChecklist  = func(items []engine.Item, permanent bool) ([]engine.Item, bool, error) {
@@ -126,7 +141,10 @@ review and careful items are listed unchecked. Files go to the OS Trash unless -
 				}
 			}
 
-			results := cleaner.Execute(ctx, items, opts)
+			results, err := runExecute(ctx, cleaner, items, opts)
+			if err != nil {
+				return err
+			}
 			if dryRun {
 				return ui.RenderPlan(out, results, ColorEnabled())
 			}

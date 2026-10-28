@@ -306,3 +306,18 @@ func TestExecuteStopsOnCancelledContext(t *testing.T) {
 		t.Errorf("results = %+v", res)
 	}
 }
+
+func TestExecuteReportsProgress(t *testing.T) {
+	fx := newFixture(t)
+	a, b := fx.item(t, "a", true), fx.item(t, "b", true)
+	var started []string
+	var dones []int
+	o := engine.ExecOptions{
+		OnStart:  func(done, total int, f engine.Finding) { started = append(started, f.Label); _ = total },
+		OnResult: func(done, total int, r engine.Result) { dones = append(dones, done); _ = total },
+	}
+	fx.c.Execute(context.Background(), []engine.Item{a, b}, o)
+	if len(started) != 2 || len(dones) != 2 || dones[1] != 2 {
+		t.Errorf("started=%v dones=%v", started, dones)
+	}
+}

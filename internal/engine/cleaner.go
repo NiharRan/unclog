@@ -158,6 +158,10 @@ type Result struct {
 type ExecOptions struct {
 	Permanent bool
 	DryRun    bool
+
+	// OnStart and OnResult, if set, report progress: done items so far out of total.
+	OnStart  func(done, total int, f Finding)
+	OnResult func(done, total int, r Result)
 }
 
 // Cleaner removes selected findings. Every dependency is injected so tests never touch
@@ -187,11 +191,18 @@ func DefaultExec(ctx context.Context, argv []string) error {
 // failing log stops the action instead of leaving an unlogged removal.
 func (c *Cleaner) Execute(ctx context.Context, items []Item, o ExecOptions) []Result {
 	var results []Result
-	for _, it := range Selected(items) {
+	sel := Selected(items)
+	for _, it := range sel {
 		if ctx.Err() != nil {
 			break
 		}
+		if o.OnStart != nil {
+			o.OnStart(len(results), len(sel), it.Finding)
+		}
 		results = append(results, c.one(ctx, it.Finding, o))
+		if o.OnResult != nil {
+			o.OnResult(len(results), len(sel), results[len(results)-1])
+		}
 	}
 	return results
 }

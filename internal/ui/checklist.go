@@ -12,8 +12,9 @@ import (
 type stage int
 
 const (
-	stagePick    stage = iota
-	stageBlocked       // popup: some selected items cannot be removed right now
+	stagePick     stage = iota
+	stageChecking       // Enter pressed while the in-use check is still running
+	stageBlocked        // popup: some selected items cannot be removed right now
 	stageConfirm
 )
 
@@ -39,6 +40,11 @@ type Checklist struct {
 	// Selected blocked items trigger a popup before the confirm page.
 	Blocked func(engine.Item) string
 
+	// reasons[i] is why item i is blocked ("" if not). Computed once in the background,
+	// because checking for open files can take seconds and must not stall the keys.
+	reasons []string
+	checked bool
+
 	Confirmed bool
 	Cancelled bool
 }
@@ -50,10 +56,34 @@ func NewChecklist(items []engine.Item, permanent, color bool) *Checklist {
 // Items returns the items with the user's final selection.
 func (m *Checklist) Items() []engine.Item { return m.items }
 
-func (m *Checklist) Init() tea.Cmd { return nil }
+type reasonsMsg []string
+
+func (m *Checklist) Init() tea.Cmd { return m.check() }
+
+// check computes every item's blocked reason off the UI thread.
+func (m *Checklist) check() tea.Cmd {
+	items, blocked := append([]engine.Item(nil), m.items...), m.Blocked
+	return func() tea.Msg {
+		out := make([]string, len(items))
+		for i, it := range items {
+			if blocked != nil {
+				out[i] = blocked(it)
+			}
+			if out[i] == "" && it.ToolRunning {
+				out[i] = it.Tool + " is running"
+			}
+		}
+		return reasonsMsg(out)
+	}
+}
 
 func (m *Checklist) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case reasonsMsg:
+		m.reasons, m.checked = msg, true
+		if m.stage == stageChecking {
+			m.enterReview()
+		}
 	case tea.WindowSizeMsg:
 		m.height = max(5, msg.Height-8)
 		m.scroll()
@@ -96,12 +126,8 @@ func (m *Checklist) updatePick(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.items[i].Selected = false
 		}
 	case "enter":
-		switch {
-		case len(engine.Selected(m.items)) == 0:
-		case len(m.blockedSelected()) > 0:
-			m.stage = stageBlocked
-		default:
-			m.stage = stageConfirm
+		if len(engine.Selected(m.items)) > 0 {
+			m.enterReview()
 		}
 	case "q", "esc":
 		m.Cancelled = true
@@ -116,17 +142,23 @@ type blockedItem struct {
 	reason string
 }
 
+// enterReview moves on to the popup or the confirm page once the in-use check is done.
+func (m *Checklist) enterReview() {
+	switch {
+	case !m.checked:
+		m.stage = stageChecking
+	case len(m.blockedSelected()) > 0:
+		m.stage = stageBlocked
+	default:
+		m.stage = stageConfirm
+	}
+}
+
 func (m *Checklist) blockedSelected() []blockedItem {
 	var out []blockedItem
 	for i, it := range m.items {
-		if !it.Selected {
-			continue
-		}
-		switch {
-		case m.Blocked != nil && m.Blocked(it) != "":
-			out = append(out, blockedItem{i, m.Blocked(it)})
-		case it.ToolRunning:
-			out = append(out, blockedItem{i, it.Tool + " is running"})
+		if it.Selected && i < len(m.reasons) && m.reasons[i] != "" {
+			out = append(out, blockedItem{i, m.reasons[i]})
 		}
 	}
 	return out
@@ -194,6 +226,8 @@ func (m *Checklist) View() string {
 		return ""
 	}
 	switch m.stage {
+	case stageChecking:
+		return m.st.dim.Render("Checking which items are in use…") + "\n"
 	case stageBlocked:
 		return m.blockedView()
 	case stageConfirm:

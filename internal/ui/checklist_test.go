@@ -26,6 +26,9 @@ func key(s string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 }
 
+// ready runs the background in-use check and delivers its result, as bubbletea would.
+func ready(m *Checklist) { m.Update(m.check()()) }
+
 func press(m *Checklist, keys ...string) {
 	for _, k := range keys {
 		m.Update(key(k))
@@ -87,6 +90,7 @@ func TestChecklistCursorStaysInRange(t *testing.T) {
 
 func TestChecklistConfirmFlow(t *testing.T) {
 	m := NewChecklist(items(), false, false)
+	ready(m)
 	press(m, "enter")
 	if m.stage != stageConfirm || !strings.Contains(m.View(), "Move to the Trash") {
 		t.Fatalf("confirm view:\n%s", m.View())
@@ -111,6 +115,7 @@ func TestChecklistEnterWithNothingSelectedStays(t *testing.T) {
 
 func TestChecklistConfirmWarnsAboutRisk(t *testing.T) {
 	m := NewChecklist(items(), false, false)
+	ready(m)
 	press(m, "down", "space", "enter") // careful item on, nothing blocked
 	if v := m.View(); !strings.Contains(v, "marked review or careful") || !strings.Contains(v, "2 items") {
 		t.Errorf("view:\n%s", v)
@@ -119,6 +124,7 @@ func TestChecklistConfirmWarnsAboutRisk(t *testing.T) {
 
 func TestChecklistBlockedPopup(t *testing.T) {
 	m := NewChecklist(items(), false, false)
+	ready(m)
 	press(m, "down", "down", "space", "enter") // the running-tool item joins the selection
 	if m.stage != stageBlocked || !strings.Contains(m.View(), "Cursor is running") || !strings.Contains(m.View(), "can't be removed") {
 		t.Fatalf("expected popup, stage=%v:\n%s", m.stage, m.View())
@@ -145,6 +151,7 @@ func TestChecklistBlockedHook(t *testing.T) {
 		}
 		return ""
 	}
+	ready(m)
 	press(m, "enter")
 	if m.stage != stageBlocked || !strings.Contains(m.View(), "no permission to remove it") {
 		t.Errorf("stage=%v:\n%s", m.stage, m.View())
@@ -172,6 +179,7 @@ func TestChecklistCancel(t *testing.T) {
 
 func TestChecklistPermanentNeedsTypedWord(t *testing.T) {
 	m := NewChecklist(items(), true, false)
+	ready(m)
 	press(m, "enter")
 	if !strings.Contains(m.View(), "Delete permanently") || !strings.Contains(m.View(), "cannot be undone") {
 		t.Fatalf("view:\n%s", m.View())
@@ -240,6 +248,7 @@ func TestRenderResults(t *testing.T) {
 
 func TestChecklistCustomWording(t *testing.T) {
 	m := NewChecklist(items(), false, false)
+	ready(m)
 	m.Title, m.Verb = "Select processes to stop", "Terminate"
 	if !strings.Contains(m.View(), "Select processes to stop") {
 		t.Errorf("title missing:\n%s", m.View())
@@ -274,5 +283,38 @@ func TestRenderKill(t *testing.T) {
 	_ = RenderKill(&b, []engine.KillResult{{Proc: p(1000), Outcome: engine.DryRun}}, true, false)
 	if !strings.Contains(b.String(), "would stop") || !strings.Contains(b.String(), "Dry run: 1 process, about 100.0 MB of RAM. Nothing was changed.") {
 		t.Errorf("dry:\n%s", b.String())
+	}
+}
+
+func TestChecklistEnterWaitsForSlowCheck(t *testing.T) {
+	m := NewChecklist(items(), false, false)
+	press(m, "enter") // check not finished yet
+	if m.stage != stageChecking || !strings.Contains(m.View(), "Checking") {
+		t.Fatalf("stage=%v:\n%s", m.stage, m.View())
+	}
+	ready(m) // result arrives: moves on by itself
+	if m.stage != stageConfirm {
+		t.Errorf("stage=%v, want confirm", m.stage)
+	}
+}
+
+func TestProgressViewShowsBarAndRecentItems(t *testing.T) {
+	its := []engine.Item{
+		{Finding: engine.Finding{Tool: "pip", Label: "pip cache", Size: 10 << 20}, Selected: true},
+		{Finding: engine.Finding{Tool: "HF", Label: "model", Size: 30 << 20}, Selected: true},
+	}
+	m := &Progress{title: "Moving to the Trash", total: 2, all: selectedSize(its), st: newStyles(false)}
+	m.Update(startMsg{its[0].Finding})
+	m.Update(resultMsg{1, engine.Result{Finding: its[0].Finding, Outcome: engine.Trashed}})
+	m.Update(startMsg{its[1].Finding})
+	v := m.View()
+	for _, want := range []string{"Moving to the Trash", "1/2", "50%", "10.0 MB of 40.0 MB", "now HF: model", "✔ pip: pip cache"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing %q in\n%s", want, v)
+		}
+	}
+	m.Update(resultMsg{2, engine.Result{Finding: its[1].Finding, Outcome: engine.Refused}})
+	if v := m.View(); !strings.Contains(v, "! HF: model") || !strings.Contains(v, "10.0 MB of 40.0 MB") {
+		t.Errorf("skipped items must not count as freed:\n%s", v)
 	}
 }
