@@ -109,3 +109,7 @@ The scanning and cleaning logic lives in `internal/engine`, separate from the th
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+## Support
+
+unclog is free and open source. If it saved you some disk space, you can [buy me a coffee](https://buymeacoffee.com/niharranjan).
