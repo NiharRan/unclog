@@ -5,8 +5,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/NiharRan/unclog/internal/engine"
 	"github.com/Bios-Marcel/wastebasket/v2"
+	"github.com/NiharRan/unclog/internal/engine"
 )
 
 // viaSystem is the platform trash helper. On macOS it asks Finder, which plays the

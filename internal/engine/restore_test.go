@@ -3,6 +3,7 @@ package engine_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -76,5 +77,57 @@ func TestListTrashedWithoutRecordedLocation(t *testing.T) {
 	}
 	if err := got[0].Undo(); err != nil || !called {
 		t.Errorf("undo not wired: %v", err)
+	}
+}
+
+func TestRestoreRefusesFolderTurnedSymlink(t *testing.T) {
+	dir, _ := filepath.EvalSymlinks(t.TempDir()) // macOS temp dirs sit behind a /var symlink
+	protected, orig := filepath.Join(dir, "protected"), filepath.Join(dir, "proj", "x")
+	if err := os.MkdirAll(protected, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(protected, filepath.Join(dir, "proj")); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(dir, "trashed")
+	if err := os.WriteFile(dest, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &engine.Restorer{Log: noLog{}, Denied: func(p string) string {
+		if filepath.Dir(p) == protected {
+			return "protected"
+		}
+		return ""
+	}}
+	e := engine.TrashedEntry{Orig: orig, Dest: dest, Undo: func() error { return os.Rename(dest, orig) }}
+	if err := r.Restore(e); err == nil {
+		t.Fatal("restore through a symlink into a protected folder must fail")
+	}
+	if _, err := os.Lstat(filepath.Join(protected, "x")); err == nil {
+		t.Error("file landed in the protected folder")
+	}
+}
+
+func TestInTrashUndoNeverReplaces(t *testing.T) {
+	dir := t.TempDir()
+	trashDir := filepath.Join(dir, ".Trash")
+	if err := os.MkdirAll(trashDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dest, orig := filepath.Join(trashDir, "x"), filepath.Join(dir, "x")
+	for p, c := range map[string]string{dest: "trashed", orig: "newer"} {
+		if err := os.WriteFile(p, []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	undo, ok := engine.InTrash(trashDir)(engine.TrashedEntry{Orig: orig, Dest: dest})
+	if !ok {
+		t.Fatal("entry not located")
+	}
+	if runtime.GOOS == "darwin" && undo() == nil {
+		t.Error("undo replaced an existing file")
+	}
+	if b, _ := os.ReadFile(orig); runtime.GOOS == "darwin" && string(b) != "newer" {
+		t.Errorf("existing file changed to %q", b)
 	}
 }

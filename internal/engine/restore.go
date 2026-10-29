@@ -33,7 +33,7 @@ func InTrash(trashDir string) Locator {
 		if _, err := os.Lstat(e.Dest); err != nil {
 			return nil, false
 		}
-		return func() error { return os.Rename(e.Dest, e.Orig) }, true
+		return func() error { return renameNoReplace(e.Dest, e.Orig) }, true
 	}
 }
 
@@ -93,6 +93,9 @@ func (r *Restorer) Restore(e TrashedEntry) error {
 	if why := r.Denied(e.Orig); why != "" {
 		return fmt.Errorf("refused to restore %s: %s", e.Orig, why)
 	}
+	if why := r.Denied(resolveParents(e.Orig)); why != "" {
+		return fmt.Errorf("refused to restore %s: its folder now resolves to a protected place (%s)", e.Orig, why)
+	}
 	if _, err := os.Lstat(e.Orig); err == nil {
 		return fmt.Errorf("%s already exists, not overwriting", e.Orig)
 	}
@@ -111,4 +114,21 @@ func (r *Restorer) Restore(e TrashedEntry) error {
 		err = fmt.Errorf("restored, but history log unwritable: %w", lerr)
 	}
 	return err
+}
+
+// resolveParents returns p with symlinks resolved in its deepest existing ancestor, so a
+// folder that has since become a symlink cannot steer a restore past the denylist.
+func resolveParents(p string) string {
+	dir, rest := filepath.Dir(p), filepath.Base(p)
+	for dir != filepath.Dir(dir) {
+		if _, err := os.Lstat(dir); err == nil {
+			break
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+		dir = filepath.Dir(dir)
+	}
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = real
+	}
+	return filepath.Join(dir, rest)
 }
