@@ -14,10 +14,10 @@ import (
 func viaSystem(path string) error { return wastebasket.Trash(path) }
 
 // matchWindow is how far a trash deletion date may be from the logged time.
-const matchWindow = 2 * time.Minute
+const matchWindow = 30 * time.Second
 
 // Locate finds an entry in the system trash (Linux, Windows) by its original path and
-// the time it was trashed, so the log needs no trash location. Restoring never overwrites.
+// the time it was trashed (within 30s of the logged time), so the log needs no trash location. Restoring never overwrites.
 // shortcut: one trash query per entry; fine for a log of a few hundred, batch if it gets slow.
 func Locate(e engine.TrashedEntry) (func() error, bool) {
 	res, err := wastebasket.Query(wastebasket.QueryOptions{Search: []string{e.Orig}})

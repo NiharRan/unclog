@@ -102,7 +102,7 @@ func (r *Restorer) Restore(e TrashedEntry) error {
 	if err := r.Log.Log("restore", e.Orig, e.Size, "started"); err != nil {
 		return fmt.Errorf("not acting, history log unwritable: %w", err)
 	}
-	err := os.MkdirAll(filepath.Dir(e.Orig), 0o755)
+	err := os.MkdirAll(filepath.Dir(e.Orig), 0o700)
 	if err == nil {
 		err = e.Undo()
 	}
