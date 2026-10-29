@@ -136,6 +136,9 @@ type ActionLog interface {
 	Log(action, target string, size Size, outcome string) error
 }
 
+// TrashedTo prefixes the trash location in a logged "trashed" outcome.
+const TrashedTo = ": "
+
 type Outcome string
 
 const (
@@ -169,7 +172,8 @@ type ExecOptions struct {
 type Cleaner struct {
 	Guard Guard
 	Log   ActionLog
-	Trash func(path string) error
+	// Trash moves path to the trash and returns where it went ("" if unknown).
+	Trash func(path string) (string, error)
 	// Exec runs a CleanVia command; it has no short timeout because prunes can be slow.
 	Exec func(ctx context.Context, argv []string) error
 }
@@ -247,6 +251,7 @@ func (c *Cleaner) one(ctx context.Context, f Finding, o ExecOptions) Result {
 		return r
 	}
 	var err error
+	var dest string
 	switch action {
 	case "run":
 		err = c.Exec(ctx, f.CleanVia)
@@ -255,10 +260,13 @@ func (c *Cleaner) one(ctx context.Context, f Finding, o ExecOptions) Result {
 		err = os.RemoveAll(f.Path)
 		r.Outcome = Deleted
 	default:
-		err = c.Trash(f.Path)
+		dest, err = c.Trash(f.Path)
 		r.Outcome = Trashed
 	}
 	outcome := string(r.Outcome)
+	if dest != "" && err == nil {
+		outcome += TrashedTo + dest // lets `restore` find the file again
+	}
 	if err != nil {
 		r.Outcome, r.Err = Failed, err
 		outcome = "failed: " + err.Error()

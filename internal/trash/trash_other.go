@@ -2,5 +2,5 @@
 
 package trash
 
-// Move sends path to the OS trash.
-func Move(path string) error { return viaSystem(path) }
+// Move sends path to the OS trash. The trash location is unknown here, so it returns "".
+func Move(path string) (string, error) { return "", viaSystem(path) }

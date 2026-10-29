@@ -112,7 +112,7 @@ func newFixture(t *testing.T) *fixture {
 			fx.logs = append(fx.logs, action+"|"+target+"|"+outcome)
 			return nil
 		}),
-		Trash: func(p string) error { return os.Rename(p, filepath.Join(fx.trashDir, filepath.Base(p))) },
+		Trash: func(p string) (string, error) { return "", os.Rename(p, filepath.Join(fx.trashDir, filepath.Base(p))) },
 		Exec:  func(_ context.Context, argv []string) error { fx.execs = append(fx.execs, argv); return nil },
 	}
 	return fx
@@ -268,11 +268,11 @@ func TestExecuteContinuesAfterFailure(t *testing.T) {
 	fx := newFixture(t)
 	a, b := fx.item(t, "a", true), fx.item(t, "b", true)
 	n := 0
-	fx.c.Trash = func(p string) error {
+	fx.c.Trash = func(p string) (string, error) {
 		if n++; n == 1 {
-			return errors.New("trash unavailable")
+			return "", errors.New("trash unavailable")
 		}
-		return os.Rename(p, filepath.Join(fx.trashDir, filepath.Base(p)))
+		return "", os.Rename(p, filepath.Join(fx.trashDir, filepath.Base(p)))
 	}
 	res := fx.c.Execute(context.Background(), []engine.Item{a, b}, engine.ExecOptions{})
 	if res[0].Outcome != engine.Failed || res[1].Outcome != engine.Trashed {

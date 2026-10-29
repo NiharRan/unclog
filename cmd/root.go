@@ -41,7 +41,7 @@ func newRootCmd() *cobra.Command {
 	}
 	root.PersistentFlags().BoolVar(&quiet, "quiet", false, "hide footers and non-essential output")
 	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
-	root.AddCommand(newVersionCmd(), newScanCmd(), newPSCmd(), newCleanCmd(), newKillCmd(), newDoctorCmd(), newConfigCmd())
+	root.AddCommand(newVersionCmd(), newScanCmd(), newPSCmd(), newCleanCmd(), newRestoreCmd(), newKillCmd(), newDoctorCmd(), newConfigCmd())
 	return root
 }
 

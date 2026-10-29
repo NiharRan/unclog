@@ -33,7 +33,7 @@ func useClean(t *testing.T) *cleanEnv {
 				ce.logs = append(ce.logs, a+"|"+filepath.Base(tg)+"|"+o)
 				return nil
 			}),
-			Trash: func(p string) error { return os.Rename(p, filepath.Join(ce.trash, filepath.Base(p))) },
+			Trash: func(p string) (string, error) { return "", os.Rename(p, filepath.Join(ce.trash, filepath.Base(p))) },
 			Exec:  func(context.Context, []string) error { return nil },
 		}
 	}
@@ -232,7 +232,7 @@ func TestCleanFailureExitsNonZero(t *testing.T) {
 	newEnv = func() (engine.Env, error) { return env, nil }
 	base := newCleaner(env)
 	newCleaner = func(engine.Env) *engine.Cleaner {
-		base.Trash = func(string) error { return errors.New("no trash on this server") }
+		base.Trash = func(string) (string, error) { return "", errors.New("no trash on this server") }
 		return base
 	}
 	out, err := runErr("clean", "--yes", "--no-color")

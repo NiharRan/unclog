@@ -17,7 +17,7 @@ func TestMoveRenamesIntoTrashAndKeepsDuplicates(t *testing.T) {
 		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if err := Move(p); err != nil {
+		if _, err := Move(p); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := os.Lstat(p); !os.IsNotExist(err) {

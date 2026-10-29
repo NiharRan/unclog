@@ -12,16 +12,17 @@ import (
 )
 
 // Move renames path into ~/.Trash so Finder is never involved and nothing plays a sound.
+// It returns the new location, or "" when the system trash was used and the location is unknown.
 // shortcut: no "Put Back" metadata, and a path on another volume falls back to Finder
 // (which plays the sound); upgrade to NSFileManager trashItem if that matters.
-func Move(path string) error {
+func Move(path string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return viaSystem(path)
+		return "", viaSystem(path)
 	}
 	dir := filepath.Join(home, ".Trash")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return viaSystem(path)
+		return "", viaSystem(path)
 	}
 	dst := filepath.Join(dir, filepath.Base(path))
 	if _, err := os.Lstat(dst); err == nil { // same name already in the Trash: add a time like Finder does
@@ -37,9 +38,9 @@ func Move(path string) error {
 	}
 	if err := os.Rename(path, dst); err != nil {
 		if errors.Is(err, syscall.EXDEV) {
-			return viaSystem(path)
+			return "", viaSystem(path)
 		}
-		return err
+		return "", err
 	}
-	return nil
+	return dst, nil
 }
