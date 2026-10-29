@@ -12,16 +12,34 @@ import (
 	"time"
 )
 
-// TrashedEntry is a past clean that can still be undone: Dest is where it sits in the Trash.
+// TrashedEntry is a past clean that can still be undone.
 type TrashedEntry struct {
 	Time       time.Time
-	Orig, Dest string
+	Orig, Dest string // Dest is where it sits in the Trash, "" if the log did not record it
 	Size       Size
+	Undo       func() error // moves it back to Orig; set by the Locator
 }
 
-// ListTrashed reads the history log and returns trash actions whose file is still in
-// trashDir, newest first. Lines without a recorded trash location are skipped.
-func ListTrashed(logPath, trashDir string) ([]TrashedEntry, error) {
+// Locator finds e in the trash and returns how to undo it, or false if it is gone.
+type Locator func(e TrashedEntry) (undo func() error, ok bool)
+
+// InTrash locates entries by the trash path recorded in the log, for a trash that is a
+// plain folder such as ~/.Trash on macOS. Entries without a recorded path are not found.
+func InTrash(trashDir string) Locator {
+	return func(e TrashedEntry) (func() error, bool) {
+		if e.Dest == "" || filepath.Dir(e.Dest) != trashDir {
+			return nil, false
+		}
+		if _, err := os.Lstat(e.Dest); err != nil {
+			return nil, false
+		}
+		return func() error { return os.Rename(e.Dest, e.Orig) }, true
+	}
+}
+
+// ListTrashed reads the history log and returns trash actions that locate still finds in
+// the trash, newest first.
+func ListTrashed(logPath string, locate Locator) ([]TrashedEntry, error) {
 	f, err := os.Open(logPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -44,13 +62,20 @@ func ListTrashed(logPath, trashDir string) ([]TrashedEntry, error) {
 		ts, e3 := time.Parse(time.RFC3339, p[0])
 		size, e4 := strconv.ParseInt(p[3], 10, 64)
 		dest, ok := strings.CutPrefix(outcome, string(Trashed)+TrashedTo)
-		if !ok || e1 != nil || e2 != nil || e3 != nil || e4 != nil || filepath.Dir(dest) != trashDir {
+		if !ok {
+			dest = "" // CutPrefix hands back the whole string on a miss
+			if outcome != string(Trashed) {
+				continue
+			}
+		}
+		if e1 != nil || e2 != nil || e3 != nil || e4 != nil {
 			continue
 		}
-		if _, err := os.Lstat(dest); err != nil {
-			continue
+		e := TrashedEntry{Time: ts, Orig: orig, Dest: dest, Size: Size(size)}
+		if undo, found := locate(e); found {
+			e.Undo = undo
+			out = append(out, e)
 		}
-		out = append(out, TrashedEntry{Time: ts, Orig: orig, Dest: dest, Size: Size(size)})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Time.After(out[j].Time) })
 	return out, sc.Err()
@@ -68,9 +93,6 @@ func (r *Restorer) Restore(e TrashedEntry) error {
 	if why := r.Denied(e.Orig); why != "" {
 		return fmt.Errorf("refused to restore %s: %s", e.Orig, why)
 	}
-	if _, err := os.Lstat(e.Dest); err != nil {
-		return fmt.Errorf("%s is no longer in the Trash", e.Dest)
-	}
 	if _, err := os.Lstat(e.Orig); err == nil {
 		return fmt.Errorf("%s already exists, not overwriting", e.Orig)
 	}
@@ -79,7 +101,7 @@ func (r *Restorer) Restore(e TrashedEntry) error {
 	}
 	err := os.MkdirAll(filepath.Dir(e.Orig), 0o755)
 	if err == nil {
-		err = os.Rename(e.Dest, e.Orig)
+		err = e.Undo()
 	}
 	outcome := "restored"
 	if err != nil {

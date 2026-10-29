@@ -7,6 +7,7 @@ import (
 
 	"github.com/NiharRan/unclog/internal/engine"
 	"github.com/NiharRan/unclog/internal/safety"
+	"github.com/NiharRan/unclog/internal/trash"
 	"github.com/NiharRan/unclog/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -26,7 +27,7 @@ func newRestoreCmd() *cobra.Command {
 	var all, dryRun bool
 	c := &cobra.Command{
 		Use:   "restore",
-		Short: "Put files unclog moved to the Trash back where they were (macOS)",
+		Short: "Put files unclog moved to the Trash back where they were",
 		Long: `Lists what a past "clean" moved to the Trash and lets you pick what to put back.
 Only items still in the Trash are listed, and nothing is overwritten.`,
 		Args: cobra.NoArgs,
@@ -35,11 +36,12 @@ Only items still in the Trash are listed, and nothing is overwritten.`,
 			if err != nil {
 				return err
 			}
-			if env.OS != "darwin" {
-				return errors.New("restore is only supported on macOS for now")
-			}
 			hist := safety.NewHistory(env)
-			entries, err := engine.ListTrashed(hist.Path(), filepath.Join(env.Home, ".Trash"))
+			locate := trash.Locate
+			if env.OS == "darwin" {
+				locate = engine.InTrash(filepath.Join(env.Home, ".Trash"))
+			}
+			entries, err := engine.ListTrashed(hist.Path(), locate)
 			if err != nil {
 				return err
 			}
