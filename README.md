@@ -40,8 +40,9 @@ Or download an archive for your platform from the [releases page](https://github
 | `unclog ps` | Table of AI-related processes with RAM, CPU, uptime, parent and an orphan flag. Flags: `--watch`, `--orphans`, `--json`. |
 | `unclog kill` | Stops orphaned AI processes: SIGTERM, then SIGKILL after 5 seconds. Flags: `--orphans`, `--pid`, `--dry-run`, `--yes`. |
 | `unclog doctor` | The top 5 problems with a one-line fix each. Flag: `--json`. |
+| `unclog restore` | Puts files unclog moved to the Trash back where they were (macOS, Linux, Windows). Flags: `--all`, `--dry-run`. |
 | `unclog config` | Shows the effective settings. Subcommands: `init`, `edit`, `path`. |
-| `unclog version` | Version, commit and platform. |
+| `unclog version` | Version, commit and platform. Flag: `--check` asks GitHub whether a newer release exists. |
 
 Exit codes: `0` ok, `1` error, `2` nothing found, `3` cancelled by you. Colors turn off when output is piped, with `--no-color`, or when `NO_COLOR` is set.
 
@@ -75,7 +76,7 @@ One bad deletion kills trust, so these rules are enforced in code and covered by
 8. `kill` never touches other users' processes, PID below 100, this program or its parent shell, or anything no detector matches.
 9. `--dry-run` shows exactly what a real run would do and changes nothing.
 10. Every clean and kill action is logged to `~/.config/unclog/history.log`.
-11. No network calls and no telemetry.
+11. No telemetry. The only network call is the update check, and only when you run `version --check` or turn on `update_check`.
 
 Trashing a file does not free disk space until you empty the Trash.
 
