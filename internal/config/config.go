@@ -30,7 +30,7 @@ type Config struct {
 	MinSize           engine.Size // hide findings smaller than this
 	OrphanIdleMinutes int         // near-zero CPU for this long makes an orphan
 	Quiet             bool
-	UpdateCheck       bool // reserved: the CLI has no network code yet
+	UpdateCheck       bool // opt-in: hint on stderr when a newer release exists (one request a day)
 
 	// Warnings lists non-fatal problems such as unknown keys.
 	Warnings []string
@@ -278,7 +278,8 @@ orphan_idle_minutes: 10
 # Hide the waitlist footer and other non-essential output.
 quiet: false
 
-# Reserved for an opt-in update check. unclog makes no network calls today.
+# Opt-in. When true, unclog asks GitHub at most once a day and prints a hint if a newer
+# release exists. Off means unclog makes no network calls.
 update_check: false
 `
 

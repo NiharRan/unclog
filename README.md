@@ -89,7 +89,7 @@ custom_paths: []       # extra directories to report (risk: review)
 min_size: 0            # hide findings smaller than this, e.g. 100MB
 orphan_idle_minutes: 10
 quiet: false           # hide the footer
-update_check: false    # reserved; unclog makes no network calls
+update_check: false    # true = once a day, hint on stderr when a newer release exists; off = no network calls
 ```
 
 ## Not in this tool

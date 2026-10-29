@@ -34,10 +34,11 @@ var (
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "unclog",
-		Short:         "Find and clean RAM, disk and process waste left by AI coding tools",
-		SilenceUsage:  true,
-		SilenceErrors: true,
+		Use:               "unclog",
+		Short:             "Find and clean RAM, disk and process waste left by AI coding tools",
+		SilenceUsage:      true,
+		SilenceErrors:     true,
+		PersistentPostRun: func(cmd *cobra.Command, _ []string) { notifyUpdate(cmd) },
 	}
 	root.PersistentFlags().BoolVar(&quiet, "quiet", false, "hide footers and non-essential output")
 	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
